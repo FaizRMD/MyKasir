@@ -1,0 +1,350 @@
+<!DOCTYPE html>
+<html lang="en">
+   <head>
+      <meta charset="utf-8"/>
+      <meta name="viewport" content="width=device-width, initial-scale=1, shrink-to-fit=no, viewport-fit=cover"/>
+      <meta name="description" content="Interactive entity-relationship diagram or data model diagram implemented by GoJS in JavaScript for HTML."/>
+      <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/tailwindcss/2.2.6/tailwind.min.css"/>
+
+      <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
+      <script src="https://cdnjs.cloudflare.com/ajax/libs/gojs/2.1.46/go.js"></script>
+      <script src="https://unpkg.com/gojs@2.1.47/extensions/Figures.js"></script>
+      <title>ERD</title>
+   </head>
+   <body class="bg-gray-100 tracking-wide bg-gray-200">
+        <nav class="bg-white py-2 ">
+            <div class="container px-4 mx-auto md:flex md:items-center">
+
+            <div class="flex justify-between items-center">
+                <a href="erd" class="font-bold text-xl text-indigo-600">ERD</a>
+            </div>
+
+                <div class="hidden md:flex flex-col md:flex-row md:ml-auto mt-3 md:mt-0" id="navbar-collapse">
+
+                    <a href="https://github.com/kevincobain2000/laravel-erd" class="p-2 lg:px-4 md:mx-2 text-indigo-600 text-center border border-solid border-indigo-600 rounded hover:bg-indigo-600 hover:text-white transition-colors duration-300 mt-1 md:mt-0 md:ml-1">Request Feature</a>
+                </div>
+            </div>
+        </nav>
+        <div id="app" v-cloak class="w-full flex lg:pt-10">
+            <aside class="text-xl text-grey-darkest break-all bg-gray-200 pl-2 h-screen sticky top-1 overflow-auto">
+                <b class="text-sm">Filter by Relation Type</b>
+                <div class="text-sm">
+                    <input type="checkbox" class="text-sm" id="input-relation-type-checkbox-check-all"> check all
+                </div>
+
+                <div id="filter-by-relation-type"></div>
+                <b class="text-sm">Filter by Table Name</b>
+                <div class="text-sm">
+                    <input type="checkbox" id="input-table-names-checkbox-check-all"> check all
+                </div>
+                <div id="filter-by-table-name"></div>
+            </aside>
+            <div class="ml-6 mr-6 pl-2 w-10/12 bg-gray-300 p-2">
+                <div id="myDiagramDiv" style="background-color: white; width: 100%; height: 95vh"></div>
+            </div>
+      </div>
+      <script>
+
+var nodeDataArray = [];
+var linkDataArray = [];
+var nodeDataArray = [];
+var linkDataArray = [];
+function init() {
+  var $ = go.GraphObject.make; // for conciseness in defining templates
+
+  myDiagram =
+      $(go.Diagram, "myDiagramDiv", // must name or refer to the DIV HTML element
+          {
+              allowDelete: false,
+              allowCopy: false,
+              layout: $(go.ForceDirectedLayout),
+              "undoManager.isEnabled": true
+          });
+
+  var itemTempl =
+      $(go.Panel, "Horizontal", // this Panel is a row in the containing Table
+          new go.Binding("portId", "name"), // this Panel is a "port"
+          {
+              background: "transparent", // so this port's background can be picked by the mouse
+              fromSpot: go.Spot.Right, // links only go from the right side to the left side
+              toSpot: go.Spot.Left,
+              // allow drawing links from or to this port:
+              fromLinkable: false,
+              toLinkable: false
+          },
+          $(go.Shape, {
+                  desiredSize: new go.Size(15, 15),
+                  strokeJoin: "round",
+                  strokeWidth: 3,
+                  stroke: null,
+                  margin: 2,
+                  // but disallow drawing links from or to this shape:
+                  fromLinkable: false,
+                  toLinkable: false
+              },
+              new go.Binding("figure", "figure"),
+              new go.Binding("stroke", "color"),
+              new go.Binding("fill", "color")),
+          $(go.TextBlock, {
+                  margin: new go.Margin(0, 5),
+                  column: 1,
+                  font: "13px sans-serif",
+                  alignment: go.Spot.Left,
+                  // and disallow drawing links from or to this text:
+                  fromLinkable: false,
+                  toLinkable: false
+              },
+              new go.Binding("text", "name")),
+          $(go.TextBlock, {
+                  margin: new go.Margin(0, 5),
+                  column: 2,
+                  font: "11px courier",
+                  alignment: go.Spot.Left
+              },
+              new go.Binding("text", "info"))
+      );
+
+  // define the Node template, representing an entity
+  myDiagram.nodeTemplate =
+      $(go.Node, "Auto", // the whole node panel
+          {
+              selectionAdorned: true,
+              resizable: true,
+              layoutConditions: go.Part.LayoutStandard & ~go.Part.LayoutNodeSized,
+              fromSpot: go.Spot.AllSides,
+              toSpot: go.Spot.AllSides,
+              isShadowed: true,
+              shadowOffset: new go.Point(3, 3),
+              shadowColor: "#C5C1AA"
+          },
+          new go.Binding("location", "location").makeTwoWay(),
+          // whenever the PanelExpanderButton changes the visible property of the "LIST" panel,
+          // clear out any desiredSize set by the ResizingTool.
+          new go.Binding("desiredSize", "visible", function(v) {
+              return new go.Size(NaN, NaN);
+          }).ofObject("LIST"),
+          // define the node's outer shape, which will surround the Table
+          $(go.Shape, "RoundedRectangle", {
+              fill: 'white',
+              stroke: "#eeeeee",
+              strokeWidth: 6
+          }),
+          $(go.Panel, "Table", {
+                  margin: 8,
+                  stretch: go.GraphObject.Fill
+              },
+              $(go.RowColumnDefinition, {
+                  row: 0,
+                  sizing: go.RowColumnDefinition.None
+              }),
+
+              // the table header
+              $(go.TextBlock, {
+                      row: 0,
+                      alignment: go.Spot.Left,
+                      margin: new go.Margin(0, 24, 0, 2), // leave room for Button
+                      font: "bold 16px sans-serif"
+                  },
+                  new go.Binding("text", "key")),
+              // the collapse/expand button
+              $("PanelExpanderButton", "LIST", // the name of the element whose visibility this button toggles
+                  {
+                      row: 0,
+                      alignment: go.Spot.TopRight
+                  }),
+              // the list of Panels, each showing an attribute
+              $(go.Panel, "Vertical", {
+                      name: "LIST",
+                      row: 1,
+                      padding: 3,
+                      alignment: go.Spot.TopLeft,
+                      defaultAlignment: go.Spot.Left,
+                      stretch: go.GraphObject.Horizontal,
+                      itemTemplate: itemTempl,
+                  },
+                  new go.Binding("itemArray", "schema"))
+          ) // end Table Panel
+      ); // end Node
+  // define the Link template, representing a relationship
+  myDiagram.linkTemplate =
+      $(go.Link, // the whole link panel
+          {
+              selectionAdorned: true,
+              layerName: "Foreground",
+              reshapable: true,
+              routing: go.Link.AvoidsNodes,
+              corner: 5,
+              curve: go.Link.Orthogonal,
+              curviness: 0,
+          },
+          $(go.Shape, // the link shape
+              {
+                  stroke: "#303B45",
+                  strokeWidth: 1.5,
+              }),
+          $(go.Shape, // the arrowhead
+              {
+                  toArrow: "Triangle",
+                  fill: "#1967B3"
+              }),
+          $(go.TextBlock, // the "from" label
+              {
+                  textAlign: "center",
+                  font: "bold 12px sans-serif",
+                  stroke: "#1967B3",
+                  segmentIndex: 1.5,
+                  segmentOffset: new go.Point(NaN, NaN),
+                  segmentOrientation: go.Link.Horizontal,
+                  fromLinkable: true,
+                  toLinkable: true
+              },
+              new go.Binding("text", "fromText")),
+
+          $(go.TextBlock, // the "to" label
+              {
+                  textAlign: "center",
+                  font: "bold 12px sans-serif",
+                  stroke: "#1967B3",
+                  segmentIndex: -10,
+                  segmentOffset: new go.Point(NaN, NaN),
+                  segmentOrientation: go.Link.OrientUpright,
+                  fromLinkable: true,
+                  toLinkable: true
+              },
+              new go.Binding("text", "toText"))
+      );
+
+  myDiagram.model = $(go.GraphLinksModel, {
+      copiesArrays: true,
+      copiesArrayObjects: true,
+      linkFromPortIdProperty: "fromPort",
+      linkToPortIdProperty: "toPort",
+      nodeDataArray: nodeDataArray,
+      linkDataArray: linkDataArray
+  });
+  loadFilterByTableNames()
+  loadFilterByRelationType()
+  setCheckboxesForTableNames();
+  setCheckboxesForRelationTypes();
+}
+
+
+function loadFilterByRelationType() {
+  var json = linkDataArray;
+  var appended = [];
+  $.each(json, function(i, v) {
+      // check if doesn't exist in the array
+      if ($.inArray(this.type, appended) == -1) {
+          // append
+          appended.push(this.type)
+          $("#filter-by-relation-type").append($("<div class='text-sm'>").text(this.type).prepend(
+              $("<input>").attr({
+                  'type': 'checkbox',
+                  'checked': true,
+                  'class': 'input-relation-type-checkbox',
+                  'name': 'subscribe-relation-type',
+                  "data-feed": this.type
+              }).val(this.type)
+              .prop('checked', this.checked)
+          ));
+      }
+  });
+  $(".input-relation-type-checkbox").on('change', function() {
+      setCheckboxesForTableNames()
+      setCheckboxesForRelationTypes()
+  });
+}
+
+function setCheckboxesForRelationTypes() {
+  newLinkDataArray = []
+
+  $(".input-relation-type-checkbox").each(function() {
+      if ($(this).prop('checked')) {
+          console.log($(this).val())
+          for (let i = 0; i < linkDataArray.length; i++) {
+              const element = linkDataArray[i];
+              if (element.type == $(this).val()) {
+                  newLinkDataArray.push(element)
+              }
+          }
+      }
+  });
+  myDiagram.model.linkDataArray = newLinkDataArray
+}
+
+function loadFilterByTableNames() {
+  var json = nodeDataArray;
+  var appended = [];
+  $.each(json, function(i, v) {
+      // check if doesn't exist in the array
+      if ($.inArray(this.key, appended) == -1) {
+          // append
+          appended.push(this.key)
+          $("#filter-by-table-name").append($("<div class='text-sm'>").text(this.key).prepend(
+              $("<input>").attr({
+                  'type': 'checkbox',
+                  'checked': true,
+                  'class': 'input-table-name-checkbox',
+                  'name': 'subscribe-table-name',
+                  "data-feed": this.key
+              }).val(this.key)
+              .prop('checked', this.checked)
+          ));
+      }
+  });
+
+  $(".input-table-name-checkbox").on('change', function() {
+      setCheckboxesForTableNames();
+      setCheckboxesForRelationTypes();
+  });
+}
+
+
+$("#input-relation-type-checkbox-check-all").on('change', function() {
+  $(".input-relation-type-checkbox").prop('checked', this.checked);
+  setCheckboxesForTableNames();
+  setCheckboxesForRelationTypes();
+});
+
+$("#input-table-names-checkbox-check-all").on('change', function() {
+  $(".input-table-name-checkbox").prop('checked', this.checked);
+  setCheckboxesForTableNames();
+  setCheckboxesForRelationTypes();
+});
+
+function setCheckboxesForTableNames() {
+  newNodeDataArray = []
+  newLinkDataArray = []
+
+  $(".input-table-name-checkbox").each(function() {
+      if ($(this).prop('checked')) {
+
+          for (let i = 0; i < nodeDataArray.length; i++) {
+              const element = nodeDataArray[i];
+              if (element.key == $(this).val()) {
+                  newNodeDataArray.push(element)
+              }
+          }
+          for (let i = 0; i < linkDataArray.length; i++) {
+              const element = linkDataArray[i];
+              if (element.from == $(this).val() || element.to == $(this).val()) {
+                  newLinkDataArray.push(element)
+              }
+          }
+      }
+  });
+  myDiagram.model.nodeDataArray = newNodeDataArray
+  myDiagram.model.linkDataArray = newLinkDataArray
+}
+
+var docs = "{\"link_data\":[{\"from\":\"drug_groups\",\"to\":\"products\",\"fromText\":\"1..*\\nHas Many\",\"toText\":\"\",\"fromPort\":\"id\",\"toPort\":\"drug_group_id\",\"type\":\"HasMany\"},{\"from\":\"goods_receipts\",\"to\":\"purchases\",\"fromText\":\"1..1\\nBelongs To\",\"toText\":\"\",\"fromPort\":\"purchase_id\",\"toPort\":\"id\",\"type\":\"BelongsTo\"},{\"from\":\"goods_receipts\",\"to\":\"suppliers\",\"fromText\":\"1..1\\nBelongs To\",\"toText\":\"\",\"fromPort\":\"supplier_id\",\"toPort\":\"id\",\"type\":\"BelongsTo\"},{\"from\":\"goods_receipts\",\"to\":\"goods_receipt_items\",\"fromText\":\"1..*\\nHas Many\",\"toText\":\"\",\"fromPort\":\"id\",\"toPort\":\"goods_receipt_id\",\"type\":\"HasMany\"},{\"from\":\"goods_receipt_items\",\"to\":\"goods_receipts\",\"fromText\":\"1..1\\nBelongs To\",\"toText\":\"\",\"fromPort\":\"goods_receipt_id\",\"toPort\":\"id\",\"type\":\"BelongsTo\"},{\"from\":\"goods_receipt_items\",\"to\":\"purchase_items\",\"fromText\":\"1..1\\nBelongs To\",\"toText\":\"\",\"fromPort\":\"purchase_item_id\",\"toPort\":\"id\",\"type\":\"BelongsTo\"},{\"from\":\"goods_receipt_items\",\"to\":\"products\",\"fromText\":\"1..1\\nBelongs To\",\"toText\":\"\",\"fromPort\":\"product_id\",\"toPort\":\"id\",\"type\":\"BelongsTo\"},{\"from\":\"inventory_movements\",\"to\":\"products\",\"fromText\":\"1..1\\nBelongs To\",\"toText\":\"\",\"fromPort\":\"product_id\",\"toPort\":\"id\",\"type\":\"BelongsTo\"},{\"from\":\"inventory_movements\",\"to\":\"sales\",\"fromText\":\"1..1\\nBelongs To\",\"toText\":\"\",\"fromPort\":\"sale_id\",\"toPort\":\"id\",\"type\":\"BelongsTo\"},{\"from\":\"inventory_movements\",\"to\":\"users\",\"fromText\":\"1..1\\nBelongs To\",\"toText\":\"\",\"fromPort\":\"user_id\",\"toPort\":\"id\",\"type\":\"BelongsTo\"},{\"from\":\"drug_locations\",\"to\":\"products\",\"fromText\":\"1..*\\nHas Many\",\"toText\":\"\",\"fromPort\":\"id\",\"toPort\":\"drug_location_id\",\"type\":\"HasMany\"},{\"from\":\"payables\",\"to\":\"suppliers\",\"fromText\":\"1..1\\nBelongs To\",\"toText\":\"\",\"fromPort\":\"supplier_id\",\"toPort\":\"id\",\"type\":\"BelongsTo\"},{\"from\":\"payables\",\"to\":\"purchases\",\"fromText\":\"1..1\\nBelongs To\",\"toText\":\"\",\"fromPort\":\"purchase_id\",\"toPort\":\"id\",\"type\":\"BelongsTo\"},{\"from\":\"products\",\"to\":\"sale_items\",\"fromText\":\"1..*\\nHas Many\",\"toText\":\"\",\"fromPort\":\"id\",\"toPort\":\"product_id\",\"type\":\"HasMany\"},{\"from\":\"products\",\"to\":\"suppliers\",\"fromText\":\"1..1\\nBelongs To\",\"toText\":\"\",\"fromPort\":\"supplier_id\",\"toPort\":\"id\",\"type\":\"BelongsTo\"},{\"from\":\"products\",\"to\":\"drug_groups\",\"fromText\":\"1..1\\nBelongs To\",\"toText\":\"\",\"fromPort\":\"drug_group_id\",\"toPort\":\"id\",\"type\":\"BelongsTo\"},{\"from\":\"products\",\"to\":\"drug_locations\",\"fromText\":\"1..1\\nBelongs To\",\"toText\":\"\",\"fromPort\":\"drug_location_id\",\"toPort\":\"id\",\"type\":\"BelongsTo\"},{\"from\":\"products\",\"to\":\"users\",\"fromText\":\"1..1\\nBelongs To\",\"toText\":\"\",\"fromPort\":\"user_id\",\"toPort\":\"id\",\"type\":\"BelongsTo\"},{\"from\":\"purchases\",\"to\":\"suppliers\",\"fromText\":\"1..1\\nBelongs To\",\"toText\":\"\",\"fromPort\":\"supplier_id\",\"toPort\":\"id\",\"type\":\"BelongsTo\"},{\"from\":\"purchases\",\"to\":\"apotekers\",\"fromText\":\"1..1\\nBelongs To\",\"toText\":\"\",\"fromPort\":\"apoteker_id\",\"toPort\":\"id\",\"type\":\"BelongsTo\"},{\"from\":\"purchases\",\"to\":\"users\",\"fromText\":\"1..1\\nBelongs To\",\"toText\":\"\",\"fromPort\":\"user_id\",\"toPort\":\"id\",\"type\":\"BelongsTo\"},{\"from\":\"purchases\",\"to\":\"purchase_items\",\"fromText\":\"1..*\\nHas Many\",\"toText\":\"\",\"fromPort\":\"id\",\"toPort\":\"purchase_id\",\"type\":\"HasMany\"},{\"from\":\"purchase_items\",\"to\":\"purchases\",\"fromText\":\"1..1\\nBelongs To\",\"toText\":\"\",\"fromPort\":\"purchase_id\",\"toPort\":\"id\",\"type\":\"BelongsTo\"},{\"from\":\"purchase_items\",\"to\":\"products\",\"fromText\":\"1..1\\nBelongs To\",\"toText\":\"\",\"fromPort\":\"product_id\",\"toPort\":\"id\",\"type\":\"BelongsTo\"},{\"from\":\"purchase_items\",\"to\":\"goods_receipt_items\",\"fromText\":\"1..*\\nHas Many\",\"toText\":\"\",\"fromPort\":\"id\",\"toPort\":\"purchase_item_id\",\"type\":\"HasMany\"},{\"from\":\"sales\",\"to\":\"sale_items\",\"fromText\":\"1..*\\nHas Many\",\"toText\":\"\",\"fromPort\":\"id\",\"toPort\":\"sale_id\",\"type\":\"HasMany\"},{\"from\":\"sales\",\"to\":\"customers\",\"fromText\":\"1..1\\nBelongs To\",\"toText\":\"\",\"fromPort\":\"customer_id\",\"toPort\":\"id\",\"type\":\"BelongsTo\"},{\"from\":\"sales\",\"to\":\"users\",\"fromText\":\"1..1\\nBelongs To\",\"toText\":\"\",\"fromPort\":\"user_id\",\"toPort\":\"id\",\"type\":\"BelongsTo\"},{\"from\":\"sale_items\",\"to\":\"sales\",\"fromText\":\"1..1\\nBelongs To\",\"toText\":\"\",\"fromPort\":\"sale_id\",\"toPort\":\"id\",\"type\":\"BelongsTo\"},{\"from\":\"sale_items\",\"to\":\"products\",\"fromText\":\"1..1\\nBelongs To\",\"toText\":\"\",\"fromPort\":\"product_id\",\"toPort\":\"id\",\"type\":\"BelongsTo\"},{\"from\":\"suppliers\",\"to\":\"purchases\",\"fromText\":\"1..*\\nHas Many\",\"toText\":\"\",\"fromPort\":\"id\",\"toPort\":\"supplier_id\",\"type\":\"HasMany\"},{\"from\":\"suppliers\",\"to\":\"goods_receipts\",\"fromText\":\"1..*\\nHas Many\",\"toText\":\"\",\"fromPort\":\"id\",\"toPort\":\"supplier_id\",\"type\":\"HasMany\"},{\"from\":\"suppliers\",\"to\":\"supplier_returns\",\"fromText\":\"1..*\\nHas Many\",\"toText\":\"\",\"fromPort\":\"id\",\"toPort\":\"supplier_id\",\"type\":\"HasMany\"},{\"from\":\"supplier_returns\",\"to\":\"suppliers\",\"fromText\":\"1..1\\nBelongs To\",\"toText\":\"\",\"fromPort\":\"supplier_id\",\"toPort\":\"id\",\"type\":\"BelongsTo\"},{\"from\":\"supplier_returns\",\"to\":\"purchases\",\"fromText\":\"1..1\\nBelongs To\",\"toText\":\"\",\"fromPort\":\"purchase_id\",\"toPort\":\"id\",\"type\":\"BelongsTo\"},{\"from\":\"supplier_returns\",\"to\":\"supplier_return_items\",\"fromText\":\"1..*\\nHas Many\",\"toText\":\"\",\"fromPort\":\"id\",\"toPort\":\"supplier_return_id\",\"type\":\"HasMany\"},{\"from\":\"supplier_return_items\",\"to\":\"supplier_returns\",\"fromText\":\"1..1\\nBelongs To\",\"toText\":\"\",\"fromPort\":\"supplier_return_id\",\"toPort\":\"id\",\"type\":\"BelongsTo\"},{\"from\":\"supplier_return_items\",\"to\":\"goods_receipt_items\",\"fromText\":\"1..1\\nBelongs To\",\"toText\":\"\",\"fromPort\":\"goods_receipt_item_id\",\"toPort\":\"id\",\"type\":\"BelongsTo\"},{\"from\":\"supplier_return_items\",\"to\":\"purchase_items\",\"fromText\":\"1..1\\nBelongs To\",\"toText\":\"\",\"fromPort\":\"purchase_item_id\",\"toPort\":\"id\",\"type\":\"BelongsTo\"},{\"from\":\"supplier_return_items\",\"to\":\"products\",\"fromText\":\"1..1\\nBelongs To\",\"toText\":\"\",\"fromPort\":\"product_id\",\"toPort\":\"id\",\"type\":\"BelongsTo\"},{\"from\":\"users\",\"to\":\"sales\",\"fromText\":\"1..*\\nHas Many\",\"toText\":\"\",\"fromPort\":\"id\",\"toPort\":\"user_id\",\"type\":\"HasMany\"},{\"from\":\"users\",\"to\":\"inventory_movements\",\"fromText\":\"1..*\\nHas Many\",\"toText\":\"\",\"fromPort\":\"id\",\"toPort\":\"user_id\",\"type\":\"HasMany\"},{\"from\":\"users\",\"to\":\"products\",\"fromText\":\"1..*\\nHas Many\",\"toText\":\"\",\"fromPort\":\"id\",\"toPort\":\"user_id\",\"type\":\"HasMany\"},{\"from\":\"users\",\"to\":\"notifications\",\"fromText\":null,\"toText\":null,\"fromPort\":\"id\",\"toPort\":\"notifiable_id\",\"type\":\"MorphMany\"},{\"from\":\"users\",\"to\":\"notifications\",\"fromText\":null,\"toText\":null,\"fromPort\":\"id\",\"toPort\":\"notifiable_id\",\"type\":\"MorphMany\"},{\"from\":\"users\",\"to\":\"notifications\",\"fromText\":null,\"toText\":null,\"fromPort\":\"id\",\"toPort\":\"notifiable_id\",\"type\":\"MorphMany\"}],\"node_data\":[{\"key\":\"apotekers\",\"schema\":[{\"name\":\"id\",\"isKey\":true,\"figure\":\"Hexagon\",\"color\":\"#be4b15\",\"info\":\"\"},{\"name\":\"nip\",\"isKey\":false,\"figure\":\"Decision\",\"color\":\"#6ea5f8\",\"info\":\"\"},{\"name\":\"name\",\"isKey\":false,\"figure\":\"Decision\",\"color\":\"#6ea5f8\",\"info\":\"\"},{\"name\":\"sip\",\"isKey\":false,\"figure\":\"Decision\",\"color\":\"#6ea5f8\",\"info\":\"\"},{\"name\":\"sip_valid_until\",\"isKey\":false,\"figure\":\"Decision\",\"color\":\"#6ea5f8\",\"info\":\"\"},{\"name\":\"phone\",\"isKey\":false,\"figure\":\"Decision\",\"color\":\"#6ea5f8\",\"info\":\"\"},{\"name\":\"email\",\"isKey\":false,\"figure\":\"Decision\",\"color\":\"#6ea5f8\",\"info\":\"\"},{\"name\":\"address\",\"isKey\":false,\"figure\":\"Decision\",\"color\":\"#6ea5f8\",\"info\":\"\"},{\"name\":\"is_active\",\"isKey\":false,\"figure\":\"Decision\",\"color\":\"#6ea5f8\",\"info\":\"\"},{\"name\":\"created_at\",\"isKey\":false,\"figure\":\"Decision\",\"color\":\"#6ea5f8\",\"info\":\"\"},{\"name\":\"updated_at\",\"isKey\":false,\"figure\":\"Decision\",\"color\":\"#6ea5f8\",\"info\":\"\"}]},{\"key\":\"customers\",\"schema\":[{\"name\":\"id\",\"isKey\":true,\"figure\":\"Hexagon\",\"color\":\"#be4b15\",\"info\":\"\"},{\"name\":\"code\",\"isKey\":false,\"figure\":\"Decision\",\"color\":\"#6ea5f8\",\"info\":\"\"},{\"name\":\"name\",\"isKey\":false,\"figure\":\"Decision\",\"color\":\"#6ea5f8\",\"info\":\"\"},{\"name\":\"phone\",\"isKey\":false,\"figure\":\"Decision\",\"color\":\"#6ea5f8\",\"info\":\"\"},{\"name\":\"address\",\"isKey\":false,\"figure\":\"Decision\",\"color\":\"#6ea5f8\",\"info\":\"\"},{\"name\":\"notes\",\"isKey\":false,\"figure\":\"Decision\",\"color\":\"#6ea5f8\",\"info\":\"\"},{\"name\":\"created_at\",\"isKey\":false,\"figure\":\"Decision\",\"color\":\"#6ea5f8\",\"info\":\"\"},{\"name\":\"updated_at\",\"isKey\":false,\"figure\":\"Decision\",\"color\":\"#6ea5f8\",\"info\":\"\"}]},{\"key\":\"drug_groups\",\"schema\":[{\"name\":\"id\",\"isKey\":true,\"figure\":\"Hexagon\",\"color\":\"#be4b15\",\"info\":\"\"},{\"name\":\"code\",\"isKey\":false,\"figure\":\"Decision\",\"color\":\"#6ea5f8\",\"info\":\"\"},{\"name\":\"name\",\"isKey\":false,\"figure\":\"Decision\",\"color\":\"#6ea5f8\",\"info\":\"\"},{\"name\":\"description\",\"isKey\":false,\"figure\":\"Decision\",\"color\":\"#6ea5f8\",\"info\":\"\"},{\"name\":\"is_active\",\"isKey\":false,\"figure\":\"Decision\",\"color\":\"#6ea5f8\",\"info\":\"\"},{\"name\":\"created_at\",\"isKey\":false,\"figure\":\"Decision\",\"color\":\"#6ea5f8\",\"info\":\"\"},{\"name\":\"updated_at\",\"isKey\":false,\"figure\":\"Decision\",\"color\":\"#6ea5f8\",\"info\":\"\"}]},{\"key\":\"goods_receipts\",\"schema\":[{\"name\":\"id\",\"isKey\":true,\"figure\":\"Hexagon\",\"color\":\"#be4b15\",\"info\":\"\"},{\"name\":\"purchase_id\",\"isKey\":false,\"figure\":\"Decision\",\"color\":\"#6ea5f8\",\"info\":\"\"},{\"name\":\"supplier_id\",\"isKey\":false,\"figure\":\"Decision\",\"color\":\"#6ea5f8\",\"info\":\"\"},{\"name\":\"received_at\",\"isKey\":false,\"figure\":\"Decision\",\"color\":\"#6ea5f8\",\"info\":\"\"},{\"name\":\"grn_no\",\"isKey\":false,\"figure\":\"Decision\",\"color\":\"#6ea5f8\",\"info\":\"\"},{\"name\":\"notes\",\"isKey\":false,\"figure\":\"Decision\",\"color\":\"#6ea5f8\",\"info\":\"\"},{\"name\":\"created_at\",\"isKey\":false,\"figure\":\"Decision\",\"color\":\"#6ea5f8\",\"info\":\"\"},{\"name\":\"updated_at\",\"isKey\":false,\"figure\":\"Decision\",\"color\":\"#6ea5f8\",\"info\":\"\"}]},{\"key\":\"goods_receipt_items\",\"schema\":[{\"name\":\"id\",\"isKey\":true,\"figure\":\"Hexagon\",\"color\":\"#be4b15\",\"info\":\"\"},{\"name\":\"goods_receipt_id\",\"isKey\":false,\"figure\":\"Decision\",\"color\":\"#6ea5f8\",\"info\":\"\"},{\"name\":\"purchase_item_id\",\"isKey\":false,\"figure\":\"Decision\",\"color\":\"#6ea5f8\",\"info\":\"\"},{\"name\":\"product_id\",\"isKey\":false,\"figure\":\"Decision\",\"color\":\"#6ea5f8\",\"info\":\"\"},{\"name\":\"qty\",\"isKey\":false,\"figure\":\"Decision\",\"color\":\"#6ea5f8\",\"info\":\"\"},{\"name\":\"price\",\"isKey\":false,\"figure\":\"Decision\",\"color\":\"#6ea5f8\",\"info\":\"\"},{\"name\":\"batch_no\",\"isKey\":false,\"figure\":\"Decision\",\"color\":\"#6ea5f8\",\"info\":\"\"},{\"name\":\"exp_date\",\"isKey\":false,\"figure\":\"Decision\",\"color\":\"#6ea5f8\",\"info\":\"\"},{\"name\":\"rack\",\"isKey\":false,\"figure\":\"Decision\",\"color\":\"#6ea5f8\",\"info\":\"\"},{\"name\":\"created_at\",\"isKey\":false,\"figure\":\"Decision\",\"color\":\"#6ea5f8\",\"info\":\"\"},{\"name\":\"updated_at\",\"isKey\":false,\"figure\":\"Decision\",\"color\":\"#6ea5f8\",\"info\":\"\"}]},{\"key\":\"inventory_movements\",\"schema\":[{\"name\":\"id\",\"isKey\":true,\"figure\":\"Hexagon\",\"color\":\"#be4b15\",\"info\":\"\"},{\"name\":\"user_id\",\"isKey\":false,\"figure\":\"Decision\",\"color\":\"#6ea5f8\",\"info\":\"\"},{\"name\":\"product_id\",\"isKey\":false,\"figure\":\"Decision\",\"color\":\"#6ea5f8\",\"info\":\"\"},{\"name\":\"cashier_id\",\"isKey\":false,\"figure\":\"Decision\",\"color\":\"#6ea5f8\",\"info\":\"\"},{\"name\":\"sale_id\",\"isKey\":false,\"figure\":\"Decision\",\"color\":\"#6ea5f8\",\"info\":\"\"},{\"name\":\"type\",\"isKey\":false,\"figure\":\"Decision\",\"color\":\"#6ea5f8\",\"info\":\"\"},{\"name\":\"qty\",\"isKey\":false,\"figure\":\"Decision\",\"color\":\"#6ea5f8\",\"info\":\"\"},{\"name\":\"reference\",\"isKey\":false,\"figure\":\"Decision\",\"color\":\"#6ea5f8\",\"info\":\"\"},{\"name\":\"notes\",\"isKey\":false,\"figure\":\"Decision\",\"color\":\"#6ea5f8\",\"info\":\"\"},{\"name\":\"batch_no\",\"isKey\":false,\"figure\":\"Decision\",\"color\":\"#6ea5f8\",\"info\":\"\"},{\"name\":\"expiry_date\",\"isKey\":false,\"figure\":\"Decision\",\"color\":\"#6ea5f8\",\"info\":\"\"},{\"name\":\"created_at\",\"isKey\":false,\"figure\":\"Decision\",\"color\":\"#6ea5f8\",\"info\":\"\"},{\"name\":\"updated_at\",\"isKey\":false,\"figure\":\"Decision\",\"color\":\"#6ea5f8\",\"info\":\"\"}]},{\"key\":\"drug_locations\",\"schema\":[{\"name\":\"id\",\"isKey\":true,\"figure\":\"Hexagon\",\"color\":\"#be4b15\",\"info\":\"\"},{\"name\":\"code\",\"isKey\":false,\"figure\":\"Decision\",\"color\":\"#6ea5f8\",\"info\":\"\"},{\"name\":\"name\",\"isKey\":false,\"figure\":\"Decision\",\"color\":\"#6ea5f8\",\"info\":\"\"},{\"name\":\"description\",\"isKey\":false,\"figure\":\"Decision\",\"color\":\"#6ea5f8\",\"info\":\"\"},{\"name\":\"sort_order\",\"isKey\":false,\"figure\":\"Decision\",\"color\":\"#6ea5f8\",\"info\":\"\"},{\"name\":\"created_at\",\"isKey\":false,\"figure\":\"Decision\",\"color\":\"#6ea5f8\",\"info\":\"\"},{\"name\":\"updated_at\",\"isKey\":false,\"figure\":\"Decision\",\"color\":\"#6ea5f8\",\"info\":\"\"}]},{\"key\":\"payables\",\"schema\":[{\"name\":\"id\",\"isKey\":true,\"figure\":\"Hexagon\",\"color\":\"#be4b15\",\"info\":\"\"},{\"name\":\"supplier_id\",\"isKey\":false,\"figure\":\"Decision\",\"color\":\"#6ea5f8\",\"info\":\"\"},{\"name\":\"purchase_id\",\"isKey\":false,\"figure\":\"Decision\",\"color\":\"#6ea5f8\",\"info\":\"\"},{\"name\":\"issue_date\",\"isKey\":false,\"figure\":\"Decision\",\"color\":\"#6ea5f8\",\"info\":\"\"},{\"name\":\"due_date\",\"isKey\":false,\"figure\":\"Decision\",\"color\":\"#6ea5f8\",\"info\":\"\"},{\"name\":\"amount\",\"isKey\":false,\"figure\":\"Decision\",\"color\":\"#6ea5f8\",\"info\":\"\"},{\"name\":\"paid_amount\",\"isKey\":false,\"figure\":\"Decision\",\"color\":\"#6ea5f8\",\"info\":\"\"},{\"name\":\"status\",\"isKey\":false,\"figure\":\"Decision\",\"color\":\"#6ea5f8\",\"info\":\"\"},{\"name\":\"ref_no\",\"isKey\":false,\"figure\":\"Decision\",\"color\":\"#6ea5f8\",\"info\":\"\"},{\"name\":\"note\",\"isKey\":false,\"figure\":\"Decision\",\"color\":\"#6ea5f8\",\"info\":\"\"},{\"name\":\"created_at\",\"isKey\":false,\"figure\":\"Decision\",\"color\":\"#6ea5f8\",\"info\":\"\"},{\"name\":\"updated_at\",\"isKey\":false,\"figure\":\"Decision\",\"color\":\"#6ea5f8\",\"info\":\"\"}]},{\"key\":\"pembelian\",\"schema\":[{\"name\":\"id\",\"isKey\":true,\"figure\":\"Hexagon\",\"color\":\"#be4b15\",\"info\":\"\"},{\"name\":\"po_no\",\"isKey\":false,\"figure\":\"Decision\",\"color\":\"#6ea5f8\",\"info\":\"\"},{\"name\":\"invoice_no\",\"isKey\":false,\"figure\":\"Decision\",\"color\":\"#6ea5f8\",\"info\":\"\"},{\"name\":\"invoice_date\",\"isKey\":false,\"figure\":\"Decision\",\"color\":\"#6ea5f8\",\"info\":\"\"},{\"name\":\"supplier_id\",\"isKey\":false,\"figure\":\"Decision\",\"color\":\"#6ea5f8\",\"info\":\"\"},{\"name\":\"warehouse_id\",\"isKey\":false,\"figure\":\"Decision\",\"color\":\"#6ea5f8\",\"info\":\"\"},{\"name\":\"payment_type\",\"isKey\":false,\"figure\":\"Decision\",\"color\":\"#6ea5f8\",\"info\":\"\"},{\"name\":\"cashbook\",\"isKey\":false,\"figure\":\"Decision\",\"color\":\"#6ea5f8\",\"info\":\"\"},{\"name\":\"due_date\",\"isKey\":false,\"figure\":\"Decision\",\"color\":\"#6ea5f8\",\"info\":\"\"},{\"name\":\"gross\",\"isKey\":false,\"figure\":\"Decision\",\"color\":\"#6ea5f8\",\"info\":\"\"},{\"name\":\"discount_total\",\"isKey\":false,\"figure\":\"Decision\",\"color\":\"#6ea5f8\",\"info\":\"\"},{\"name\":\"tax_percent\",\"isKey\":false,\"figure\":\"Decision\",\"color\":\"#6ea5f8\",\"info\":\"\"},{\"name\":\"tax_amount\",\"isKey\":false,\"figure\":\"Decision\",\"color\":\"#6ea5f8\",\"info\":\"\"},{\"name\":\"extra_cost\",\"isKey\":false,\"figure\":\"Decision\",\"color\":\"#6ea5f8\",\"info\":\"\"},{\"name\":\"net_total\",\"isKey\":false,\"figure\":\"Decision\",\"color\":\"#6ea5f8\",\"info\":\"\"},{\"name\":\"notes\",\"isKey\":false,\"figure\":\"Decision\",\"color\":\"#6ea5f8\",\"info\":\"\"},{\"name\":\"created_at\",\"isKey\":false,\"figure\":\"Decision\",\"color\":\"#6ea5f8\",\"info\":\"\"},{\"name\":\"updated_at\",\"isKey\":false,\"figure\":\"Decision\",\"color\":\"#6ea5f8\",\"info\":\"\"}]},{\"key\":\"products\",\"schema\":[{\"name\":\"id\",\"isKey\":true,\"figure\":\"Hexagon\",\"color\":\"#be4b15\",\"info\":\"\"},{\"name\":\"supplier_id\",\"isKey\":false,\"figure\":\"Decision\",\"color\":\"#6ea5f8\",\"info\":\"\"},{\"name\":\"drug_group_id\",\"isKey\":false,\"figure\":\"Decision\",\"color\":\"#6ea5f8\",\"info\":\"\"},{\"name\":\"drug_location_id\",\"isKey\":false,\"figure\":\"Decision\",\"color\":\"#6ea5f8\",\"info\":\"\"},{\"name\":\"sku\",\"isKey\":false,\"figure\":\"Decision\",\"color\":\"#6ea5f8\",\"info\":\"\"},{\"name\":\"name\",\"isKey\":false,\"figure\":\"Decision\",\"color\":\"#6ea5f8\",\"info\":\"\"},{\"name\":\"category\",\"isKey\":false,\"figure\":\"Decision\",\"color\":\"#6ea5f8\",\"info\":\"\"},{\"name\":\"unit\",\"isKey\":false,\"figure\":\"Decision\",\"color\":\"#6ea5f8\",\"info\":\"\"},{\"name\":\"barcode\",\"isKey\":false,\"figure\":\"Decision\",\"color\":\"#6ea5f8\",\"info\":\"\"},{\"name\":\"buy_price\",\"isKey\":false,\"figure\":\"Decision\",\"color\":\"#6ea5f8\",\"info\":\"\"},{\"name\":\"sell_price\",\"isKey\":false,\"figure\":\"Decision\",\"color\":\"#6ea5f8\",\"info\":\"\"},{\"name\":\"tax_percent\",\"isKey\":false,\"figure\":\"Decision\",\"color\":\"#6ea5f8\",\"info\":\"\"},{\"name\":\"pack_name\",\"isKey\":false,\"figure\":\"Decision\",\"color\":\"#6ea5f8\",\"info\":\"\"},{\"name\":\"pack_qty\",\"isKey\":false,\"figure\":\"Decision\",\"color\":\"#6ea5f8\",\"info\":\"\"},{\"name\":\"sell_unit\",\"isKey\":false,\"figure\":\"Decision\",\"color\":\"#6ea5f8\",\"info\":\"\"},{\"name\":\"buy_price_pack\",\"isKey\":false,\"figure\":\"Decision\",\"color\":\"#6ea5f8\",\"info\":\"\"},{\"name\":\"ppn_percent\",\"isKey\":false,\"figure\":\"Decision\",\"color\":\"#6ea5f8\",\"info\":\"\"},{\"name\":\"disc_percent\",\"isKey\":false,\"figure\":\"Decision\",\"color\":\"#6ea5f8\",\"info\":\"\"},{\"name\":\"disc_amount\",\"isKey\":false,\"figure\":\"Decision\",\"color\":\"#6ea5f8\",\"info\":\"\"},{\"name\":\"margin_amount\",\"isKey\":false,\"figure\":\"Decision\",\"color\":\"#6ea5f8\",\"info\":\"\"},{\"name\":\"margin_percent\",\"isKey\":false,\"figure\":\"Decision\",\"color\":\"#6ea5f8\",\"info\":\"\"},{\"name\":\"stock\",\"isKey\":false,\"figure\":\"Decision\",\"color\":\"#6ea5f8\",\"info\":\"\"},{\"name\":\"min_stock\",\"isKey\":false,\"figure\":\"Decision\",\"color\":\"#6ea5f8\",\"info\":\"\"},{\"name\":\"is_medicine\",\"isKey\":false,\"figure\":\"Decision\",\"color\":\"#6ea5f8\",\"info\":\"\"},{\"name\":\"drug_class\",\"isKey\":false,\"figure\":\"Decision\",\"color\":\"#6ea5f8\",\"info\":\"\"},{\"name\":\"is_compounded\",\"isKey\":false,\"figure\":\"Decision\",\"color\":\"#6ea5f8\",\"info\":\"\"},{\"name\":\"is_active\",\"isKey\":false,\"figure\":\"Decision\",\"color\":\"#6ea5f8\",\"info\":\"\"},{\"name\":\"created_at\",\"isKey\":false,\"figure\":\"Decision\",\"color\":\"#6ea5f8\",\"info\":\"\"},{\"name\":\"updated_at\",\"isKey\":false,\"figure\":\"Decision\",\"color\":\"#6ea5f8\",\"info\":\"\"}]},{\"key\":\"purchases\",\"schema\":[{\"name\":\"id\",\"isKey\":true,\"figure\":\"Hexagon\",\"color\":\"#be4b15\",\"info\":\"\"},{\"name\":\"po_no\",\"isKey\":false,\"figure\":\"Decision\",\"color\":\"#6ea5f8\",\"info\":\"\"},{\"name\":\"supplier_id\",\"isKey\":false,\"figure\":\"Decision\",\"color\":\"#6ea5f8\",\"info\":\"\"},{\"name\":\"user_id\",\"isKey\":false,\"figure\":\"Decision\",\"color\":\"#6ea5f8\",\"info\":\"\"},{\"name\":\"po_date\",\"isKey\":false,\"figure\":\"Decision\",\"color\":\"#6ea5f8\",\"info\":\"\"},{\"name\":\"type\",\"isKey\":false,\"figure\":\"Decision\",\"color\":\"#6ea5f8\",\"info\":\"\"},{\"name\":\"category\",\"isKey\":false,\"figure\":\"Decision\",\"color\":\"#6ea5f8\",\"info\":\"\"},{\"name\":\"print_type\",\"isKey\":false,\"figure\":\"Decision\",\"color\":\"#6ea5f8\",\"info\":\"\"},{\"name\":\"status\",\"isKey\":false,\"figure\":\"Decision\",\"color\":\"#6ea5f8\",\"info\":\"\"},{\"name\":\"total\",\"isKey\":false,\"figure\":\"Decision\",\"color\":\"#6ea5f8\",\"info\":\"\"},{\"name\":\"note\",\"isKey\":false,\"figure\":\"Decision\",\"color\":\"#6ea5f8\",\"info\":\"\"},{\"name\":\"created_at\",\"isKey\":false,\"figure\":\"Decision\",\"color\":\"#6ea5f8\",\"info\":\"\"},{\"name\":\"updated_at\",\"isKey\":false,\"figure\":\"Decision\",\"color\":\"#6ea5f8\",\"info\":\"\"},{\"name\":\"apoteker_id\",\"isKey\":false,\"figure\":\"Decision\",\"color\":\"#6ea5f8\",\"info\":\"\"}]},{\"key\":\"purchase_items\",\"schema\":[{\"name\":\"id\",\"isKey\":true,\"figure\":\"Hexagon\",\"color\":\"#be4b15\",\"info\":\"\"},{\"name\":\"purchase_id\",\"isKey\":false,\"figure\":\"Decision\",\"color\":\"#6ea5f8\",\"info\":\"\"},{\"name\":\"product_id\",\"isKey\":false,\"figure\":\"Decision\",\"color\":\"#6ea5f8\",\"info\":\"\"},{\"name\":\"qty\",\"isKey\":false,\"figure\":\"Decision\",\"color\":\"#6ea5f8\",\"info\":\"\"},{\"name\":\"uom\",\"isKey\":false,\"figure\":\"Decision\",\"color\":\"#6ea5f8\",\"info\":\"\"},{\"name\":\"qty_received\",\"isKey\":false,\"figure\":\"Decision\",\"color\":\"#6ea5f8\",\"info\":\"\"},{\"name\":\"cost\",\"isKey\":false,\"figure\":\"Decision\",\"color\":\"#6ea5f8\",\"info\":\"\"},{\"name\":\"discount\",\"isKey\":false,\"figure\":\"Decision\",\"color\":\"#6ea5f8\",\"info\":\"\"},{\"name\":\"tax_pct\",\"isKey\":false,\"figure\":\"Decision\",\"color\":\"#6ea5f8\",\"info\":\"\"},{\"name\":\"subtotal\",\"isKey\":false,\"figure\":\"Decision\",\"color\":\"#6ea5f8\",\"info\":\"\"},{\"name\":\"created_at\",\"isKey\":false,\"figure\":\"Decision\",\"color\":\"#6ea5f8\",\"info\":\"\"},{\"name\":\"updated_at\",\"isKey\":false,\"figure\":\"Decision\",\"color\":\"#6ea5f8\",\"info\":\"\"}]},{\"key\":\"sales\",\"schema\":[{\"name\":\"id\",\"isKey\":true,\"figure\":\"Hexagon\",\"color\":\"#be4b15\",\"info\":\"\"},{\"name\":\"user_id\",\"isKey\":false,\"figure\":\"Decision\",\"color\":\"#6ea5f8\",\"info\":\"\"},{\"name\":\"invoice_no\",\"isKey\":false,\"figure\":\"Decision\",\"color\":\"#6ea5f8\",\"info\":\"\"},{\"name\":\"customer_id\",\"isKey\":false,\"figure\":\"Decision\",\"color\":\"#6ea5f8\",\"info\":\"\"},{\"name\":\"cashier_id\",\"isKey\":false,\"figure\":\"Decision\",\"color\":\"#6ea5f8\",\"info\":\"\"},{\"name\":\"subtotal\",\"isKey\":false,\"figure\":\"Decision\",\"color\":\"#6ea5f8\",\"info\":\"\"},{\"name\":\"discount\",\"isKey\":false,\"figure\":\"Decision\",\"color\":\"#6ea5f8\",\"info\":\"\"},{\"name\":\"tax\",\"isKey\":false,\"figure\":\"Decision\",\"color\":\"#6ea5f8\",\"info\":\"\"},{\"name\":\"grand_total\",\"isKey\":false,\"figure\":\"Decision\",\"color\":\"#6ea5f8\",\"info\":\"\"},{\"name\":\"paid\",\"isKey\":false,\"figure\":\"Decision\",\"color\":\"#6ea5f8\",\"info\":\"\"},{\"name\":\"change\",\"isKey\":false,\"figure\":\"Decision\",\"color\":\"#6ea5f8\",\"info\":\"\"},{\"name\":\"payment_method\",\"isKey\":false,\"figure\":\"Decision\",\"color\":\"#6ea5f8\",\"info\":\"\"},{\"name\":\"notes\",\"isKey\":false,\"figure\":\"Decision\",\"color\":\"#6ea5f8\",\"info\":\"\"},{\"name\":\"created_at\",\"isKey\":false,\"figure\":\"Decision\",\"color\":\"#6ea5f8\",\"info\":\"\"},{\"name\":\"updated_at\",\"isKey\":false,\"figure\":\"Decision\",\"color\":\"#6ea5f8\",\"info\":\"\"}]},{\"key\":\"sale_items\",\"schema\":[{\"name\":\"id\",\"isKey\":true,\"figure\":\"Hexagon\",\"color\":\"#be4b15\",\"info\":\"\"},{\"name\":\"sale_id\",\"isKey\":false,\"figure\":\"Decision\",\"color\":\"#6ea5f8\",\"info\":\"\"},{\"name\":\"product_id\",\"isKey\":false,\"figure\":\"Decision\",\"color\":\"#6ea5f8\",\"info\":\"\"},{\"name\":\"name\",\"isKey\":false,\"figure\":\"Decision\",\"color\":\"#6ea5f8\",\"info\":\"\"},{\"name\":\"qty\",\"isKey\":false,\"figure\":\"Decision\",\"color\":\"#6ea5f8\",\"info\":\"\"},{\"name\":\"price\",\"isKey\":false,\"figure\":\"Decision\",\"color\":\"#6ea5f8\",\"info\":\"\"},{\"name\":\"tax_percent\",\"isKey\":false,\"figure\":\"Decision\",\"color\":\"#6ea5f8\",\"info\":\"\"},{\"name\":\"total\",\"isKey\":false,\"figure\":\"Decision\",\"color\":\"#6ea5f8\",\"info\":\"\"},{\"name\":\"batch_no\",\"isKey\":false,\"figure\":\"Decision\",\"color\":\"#6ea5f8\",\"info\":\"\"},{\"name\":\"created_at\",\"isKey\":false,\"figure\":\"Decision\",\"color\":\"#6ea5f8\",\"info\":\"\"},{\"name\":\"updated_at\",\"isKey\":false,\"figure\":\"Decision\",\"color\":\"#6ea5f8\",\"info\":\"\"}]},{\"key\":\"suppliers\",\"schema\":[{\"name\":\"id\",\"isKey\":true,\"figure\":\"Hexagon\",\"color\":\"#be4b15\",\"info\":\"\"},{\"name\":\"code\",\"isKey\":false,\"figure\":\"Decision\",\"color\":\"#6ea5f8\",\"info\":\"\"},{\"name\":\"name\",\"isKey\":false,\"figure\":\"Decision\",\"color\":\"#6ea5f8\",\"info\":\"\"},{\"name\":\"email\",\"isKey\":false,\"figure\":\"Decision\",\"color\":\"#6ea5f8\",\"info\":\"\"},{\"name\":\"contact_person\",\"isKey\":false,\"figure\":\"Decision\",\"color\":\"#6ea5f8\",\"info\":\"\"},{\"name\":\"phone\",\"isKey\":false,\"figure\":\"Decision\",\"color\":\"#6ea5f8\",\"info\":\"\"},{\"name\":\"address\",\"isKey\":false,\"figure\":\"Decision\",\"color\":\"#6ea5f8\",\"info\":\"\"},{\"name\":\"city\",\"isKey\":false,\"figure\":\"Decision\",\"color\":\"#6ea5f8\",\"info\":\"\"},{\"name\":\"npwp\",\"isKey\":false,\"figure\":\"Decision\",\"color\":\"#6ea5f8\",\"info\":\"\"},{\"name\":\"notes\",\"isKey\":false,\"figure\":\"Decision\",\"color\":\"#6ea5f8\",\"info\":\"\"},{\"name\":\"is_active\",\"isKey\":false,\"figure\":\"Decision\",\"color\":\"#6ea5f8\",\"info\":\"\"},{\"name\":\"created_at\",\"isKey\":false,\"figure\":\"Decision\",\"color\":\"#6ea5f8\",\"info\":\"\"},{\"name\":\"updated_at\",\"isKey\":false,\"figure\":\"Decision\",\"color\":\"#6ea5f8\",\"info\":\"\"}]},{\"key\":\"supplier_returns\",\"schema\":[{\"name\":\"id\",\"isKey\":true,\"figure\":\"Hexagon\",\"color\":\"#be4b15\",\"info\":\"\"},{\"name\":\"supplier_id\",\"isKey\":false,\"figure\":\"Decision\",\"color\":\"#6ea5f8\",\"info\":\"\"},{\"name\":\"purchase_id\",\"isKey\":false,\"figure\":\"Decision\",\"color\":\"#6ea5f8\",\"info\":\"\"},{\"name\":\"type\",\"isKey\":false,\"figure\":\"Decision\",\"color\":\"#6ea5f8\",\"info\":\"\"},{\"name\":\"note\",\"isKey\":false,\"figure\":\"Decision\",\"color\":\"#6ea5f8\",\"info\":\"\"},{\"name\":\"total_claim\",\"isKey\":false,\"figure\":\"Decision\",\"color\":\"#6ea5f8\",\"info\":\"\"},{\"name\":\"tanggal\",\"isKey\":false,\"figure\":\"Decision\",\"color\":\"#6ea5f8\",\"info\":\"\"},{\"name\":\"created_at\",\"isKey\":false,\"figure\":\"Decision\",\"color\":\"#6ea5f8\",\"info\":\"\"},{\"name\":\"updated_at\",\"isKey\":false,\"figure\":\"Decision\",\"color\":\"#6ea5f8\",\"info\":\"\"}]},{\"key\":\"supplier_return_items\",\"schema\":[]},{\"key\":\"users\",\"schema\":[{\"name\":\"id\",\"isKey\":true,\"figure\":\"Hexagon\",\"color\":\"#be4b15\",\"info\":\"\"},{\"name\":\"name\",\"isKey\":false,\"figure\":\"Decision\",\"color\":\"#6ea5f8\",\"info\":\"\"},{\"name\":\"email\",\"isKey\":false,\"figure\":\"Decision\",\"color\":\"#6ea5f8\",\"info\":\"\"},{\"name\":\"role\",\"isKey\":false,\"figure\":\"Decision\",\"color\":\"#6ea5f8\",\"info\":\"\"},{\"name\":\"email_verified_at\",\"isKey\":false,\"figure\":\"Decision\",\"color\":\"#6ea5f8\",\"info\":\"\"},{\"name\":\"password\",\"isKey\":false,\"figure\":\"Decision\",\"color\":\"#6ea5f8\",\"info\":\"\"},{\"name\":\"remember_token\",\"isKey\":false,\"figure\":\"Decision\",\"color\":\"#6ea5f8\",\"info\":\"\"},{\"name\":\"created_at\",\"isKey\":false,\"figure\":\"Decision\",\"color\":\"#6ea5f8\",\"info\":\"\"},{\"name\":\"updated_at\",\"isKey\":false,\"figure\":\"Decision\",\"color\":\"#6ea5f8\",\"info\":\"\"}]}]}"
+docs = JSON.parse(docs)
+nodeDataArray = docs.node_data
+linkDataArray = docs.link_data
+
+
+window.addEventListener('DOMContentLoaded', init);
+
+      </script>
+   </body>
+</html>
