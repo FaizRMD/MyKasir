@@ -14,37 +14,60 @@ use Illuminate\View\View;
 
 class RegisteredUserController extends Controller
 {
-    /**
-     * Display the registration view.
-     */
     public function create(): View
     {
         return view('auth.register');
     }
 
-    /**
-     * Handle an incoming registration request.
-     *
-     * @throws \Illuminate\Validation\ValidationException
-     */
     public function store(Request $request): RedirectResponse
     {
-        $request->validate([
+        // ✅ Validasi input
+        $validated = $request->validate([
             'name' => ['required', 'string', 'max:255'],
             'email' => ['required', 'string', 'lowercase', 'email', 'max:255', 'unique:'.User::class],
             'password' => ['required', 'confirmed', Rules\Password::defaults()],
+            'role' => ['required', 'in:admin,kasir,owner'], // ✅ Validasi role
+        ], [
+            'role.required' => 'Silakan pilih role Anda.',
+            'role.in' => 'Role tidak valid. Pilih: Admin, Kasir, atau Owner.',
         ]);
 
+        // ✅ DEBUG: Log data yang akan disimpan
+        \Log::info('Creating user with data:', $validated);
+
+        // ✅ Buat user DENGAN kolom 'role'
         $user = User::create([
-            'name' => $request->name,
-            'email' => $request->email,
-            'password' => Hash::make($request->password),
+            'name' => $validated['name'],
+            'email' => $validated['email'],
+            'password' => Hash::make($validated['password']),
+            'role' => $validated['role'], // ✅ PASTIKAN INI ADA!
         ]);
+
+        // ✅ DEBUG: Cek user setelah dibuat
+        \Log::info('User created:', [
+            'id' => $user->id,
+            'email' => $user->email,
+            'role' => $user->role, // ⚠️ Pastikan ini tidak 'kasir' jika pilih 'admin'
+        ]);
+
+        // ✅ Assign role Spatie (opsional, jika pakai Spatie)
+        $user->assignRole($validated['role']);
 
         event(new Registered($user));
 
         Auth::login($user);
 
-        return redirect(route('dashboard', absolute: false));
+        // ✅ Simpan role ke session
+        session(['active_role' => $validated['role']]);
+
+        // ✅ Redirect berdasarkan role
+        $message = match($validated['role']) {
+            'admin' => 'Selamat datang, Admin ' . $user->name . '!',
+            'owner' => 'Selamat datang, Owner ' . $user->name . '!',
+            'kasir' => 'Selamat datang, Kasir ' . $user->name . '!',
+            default => 'Selamat datang!',
+        };
+
+        return redirect()->route('dashboard')->with('success', $message);
     }
 }

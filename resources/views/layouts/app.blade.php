@@ -83,29 +83,6 @@
             display: block
         }
 
-        .search-wrap {
-            max-width: 760px;
-            flex: 1
-        }
-
-        .searchbar {
-            background: #fff;
-            border-radius: var(--pill);
-            padding: .5rem .65rem .5rem .9rem;
-            display: flex;
-            gap: .6rem;
-            align-items: center;
-            border: 1px solid #ffffff33;
-            box-shadow: 0 2px 10px rgba(0, 0, 0, .06)
-        }
-
-        .searchbar input {
-            border: 0;
-            background: transparent;
-            outline: 0;
-            color: #0f172a
-        }
-
         .top-actions {
             display: flex;
             align-items: center;
@@ -238,7 +215,8 @@
 
         .role {
             font-size: .8rem;
-            color: #6b7280
+            color: #6b7280;
+            font-weight: 600;
         }
 
         .menu-title {
@@ -383,17 +361,72 @@
 </head>
 
 <body>
+    @php
+        // KUNCI UTAMA: Fresh pull dari database TANPA cache
+        // Ini memastikan data user SELALU terbaru dari database
+        $currentUserId = Auth::id();
+        $me = $currentUserId ? \App\Models\User::find($currentUserId) : null;
+
+        // Jika baru switch account, force update Auth instance
+        if (session('_switched_at') && $me) {
+            Auth::setUser($me);
+        }
+
+        // Cache busting untuk avatar dengan timestamp unik
+        $cacheKey = session('_switched_at', $me?->updated_at?->timestamp ?? time());
+        $avatarUrl = $me ? route('profile.avatar', $me->id) . '?v=' . $cacheKey : null;
+
+        // Notifikasi
+        $unpaidPurchases = collect();
+        try {
+            $unpaidPurchases = \App\Models\Pembelian::with('supplier')
+                ->whereNotNull('jatuh_tempo')
+                ->where('status_bayar', '!=', 'lunas')
+                ->orderBy('jatuh_tempo', 'asc')
+                ->limit(5)
+                ->get();
+        } catch (\Exception $e) {
+            \Log::error('Error loading unpaid purchases: ' . $e->getMessage());
+        }
+
+        $lowStockProducts = collect();
+        try {
+            $lowStockProducts = \App\Models\Product::whereColumn('stock', '<=', 'min_stock')
+                ->orderBy('stock', 'asc')
+                ->limit(3)
+                ->get();
+        } catch (\Exception $e) {
+        }
+
+        $expiringProducts = collect();
+        try {
+            $expiringProducts = DB::table('pembelian_items as pi')
+                ->leftJoin('products as p', 'p.id', '=', 'pi.product_id')
+                ->whereNotNull('pi.exp_date')
+                ->whereDate('pi.exp_date', '<=', now()->addDays(30))
+                ->whereDate('pi.exp_date', '>=', now())
+                ->orderBy('pi.exp_date', 'asc')
+                ->limit(5)
+                ->select(
+                    'p.name as product_name',
+                    'pi.batch_no',
+                    'pi.exp_date',
+                    DB::raw('DATEDIFF(pi.exp_date, CURDATE()) as sisa_hari'),
+                )
+                ->get();
+        } catch (\Exception $e) {
+        }
+
+        $notifCount = $unpaidPurchases->count() + $lowStockProducts->count() + $expiringProducts->count();
+    @endphp
+
     {{-- TOPBAR --}}
     <nav class="navbar topbar navbar-expand-lg">
         <div class="container-fluid py-2">
-            <!-- Logo dan Brand di Kiri -->
             <div class="d-flex align-items-center gap-2">
-                <!-- Tombol Menu Mobile -->
                 <button class="icon-btn d-lg-none" id="btnSidebar" aria-label="Menu">
                     <i data-feather="menu"></i>
                 </button>
-
-                <!-- Logo dan Brand -->
                 <a class="navbar-brand text-white brand" href="{{ url('/') }}">
                     <span class="logo">
                         <img src="{{ asset('images/logo.png') }}" class="logo-img" alt="Logo">
@@ -401,69 +434,6 @@
                     <span>MyKasir Apotek</span>
                 </a>
             </div>
-
-
-            @php
-                $me = Auth::user();
-                $avatarUrl = $me
-                    ? route('profile.avatar', $me->id) . '?v=' . ($me->updated_at?->timestamp ?? time())
-                    : null;
-
-                /* ===================================================
-                    1. NOTIF HUTANG (PEMBELIAN BELUM LUNAS)
-                =================================================== */
-                $unpaidPurchases = collect();
-                try {
-                    $unpaidPurchases = \App\Models\Pembelian::with('supplier')
-                        ->whereNotNull('jatuh_tempo') // perbaikan
-                        ->where('status_bayar', '!=', 'lunas') // perbaikan
-                        ->orderBy('jatuh_tempo', 'asc') // perbaikan
-                        ->limit(5)
-                        ->get();
-                } catch (\Exception $e) {
-                    \Log::error('Error loading unpaid purchases: ' . $e->getMessage());
-                }
-
-                /* ===================================================
-                        2. NOTIF STOK MENIPIS
-                =================================================== */
-                $lowStockProducts = collect();
-                try {
-                    $lowStockProducts = \App\Models\Product::whereColumn('stock', '<=', 'min_stock')
-                        ->orderBy('stock', 'asc')
-                        ->limit(3)
-                        ->get();
-                } catch (\Exception $e) {
-                }
-
-                /* ===================================================
-                        3. NOTIF EXPIRED (DARI PEMBELIAN ITEMS)
-                 =================================================== */
-                $expiringProducts = collect();
-                try {
-                    $expiringProducts = DB::table('pembelian_items as pi')
-                        ->leftJoin('products as p', 'p.id', '=', 'pi.product_id')
-                        ->whereNotNull('pi.exp_date')
-                        ->whereDate('pi.exp_date', '<=', now()->addDays(30))
-                        ->whereDate('pi.exp_date', '>=', now())
-                        ->orderBy('pi.exp_date', 'asc')
-                        ->limit(5)
-                        ->select(
-                            'p.name as product_name',
-                            'pi.batch_no',
-                            'pi.exp_date',
-                            DB::raw('DATEDIFF(pi.exp_date, CURDATE()) as sisa_hari'),
-                        )
-                        ->get();
-                } catch (\Exception $e) {
-                }
-
-                /* ===================================================
-                        HITUNG TOTAL
-                 =================================================== */
-                $notifCount = $unpaidPurchases->count() + $lowStockProducts->count() + $expiringProducts->count();
-            @endphp
-
 
             <div class="top-actions">
                 {{-- Notifikasi --}}
@@ -487,136 +457,7 @@
                                 <i class="bi bi-arrow-clockwise"></i>
                             </button>
                         </div>
-
                         <div class="p-2" style="max-height: 450px; overflow-y: auto;">
-
-                            {{-- 1. NOTIFIKASI HUTANG PEMBELIAN --}}
-                            @if ($unpaidPurchases->count() > 0)
-                                <div class="dropdown-header d-flex align-items-center gap-2 text-danger">
-                                    <i class="bi bi-cash-stack"></i>
-                                    <strong>Hutang Pembelian ({{ $unpaidPurchases->count() }})</strong>
-                                </div>
-                                @foreach ($unpaidPurchases as $purchase)
-                                    @php
-                                        $dueDate = \Carbon\Carbon::parse($purchase->due_date);
-                                        $daysUntilDue = now()->diffInDays($dueDate, false);
-                                        $isOverdue = $daysUntilDue < 0;
-                                        $isDueSoon = $daysUntilDue >= 0 && $daysUntilDue <= 7;
-                                    @endphp
-                                    <a class="dropdown-item py-2 rounded mb-1"
-                                        href="{{ route('purchases.show', $purchase->id) }}">
-                                        <div class="notif-item">
-                                            <span class="dot"
-                                                style="background:{{ $isOverdue ? '#dc3545' : '#f59e0b' }}"></span>
-                                            <div class="flex-grow-1">
-                                                <div
-                                                    class="fw-semibold {{ $isOverdue ? 'text-danger' : 'text-warning' }}">
-                                                    @if ($isOverdue)
-                                                        Hutang Jatuh Tempo!
-                                                    @elseif($isDueSoon)
-                                                        Hutang Segera Jatuh Tempo
-                                                    @else
-                                                        Hutang Belum Lunas
-                                                    @endif
-                                                </div>
-                                                <div class="small text-muted mt-1">
-                                                    <strong>PO-{{ str_pad($purchase->id, 4, '0', STR_PAD_LEFT) }}</strong>
-                                                    @if ($purchase->supplier)
-                                                        - {{ $purchase->supplier->name }}
-                                                    @endif
-                                                </div>
-                                                <div class="small mt-1">
-                                                    <span
-                                                        class="badge {{ $isOverdue ? 'bg-danger' : 'bg-warning text-dark' }}">
-                                                        <i class="bi bi-calendar-event"></i>
-                                                        @if ($isOverdue)
-                                                            Terlambat {{ abs($daysUntilDue) }} hari
-                                                        @else
-                                                            {{ $daysUntilDue }} hari lagi
-                                                        @endif
-                                                    </span>
-                                                    <span class="text-muted ms-1">
-                                                        Jatuh tempo: {{ $dueDate->format('d M Y') }}
-                                                    </span>
-                                                </div>
-                                                @if (isset($purchase->total))
-                                                    <div class="small mt-1">
-                                                        <strong class="text-danger">
-                                                            Rp
-                                                            {{ number_format((float) $purchase->total, 0, ',', '.') }}
-                                                        </strong>
-                                                    </div>
-                                                @endif
-                                            </div>
-                                        </div>
-                                    </a>
-                                @endforeach
-                                <div class="dropdown-divider"></div>
-                            @endif
-
-                            {{-- 2. NOTIFIKASI STOK MENIPIS --}}
-                            @if ($lowStockProducts->count() > 0)
-                                <div class="dropdown-header d-flex align-items-center gap-2 text-warning">
-                                    <i class="bi bi-exclamation-triangle-fill"></i>
-                                    <strong>Stok Menipis ({{ $lowStockProducts->count() }})</strong>
-                                </div>
-                                @foreach ($lowStockProducts as $product)
-                                    <a class="dropdown-item py-2 rounded mb-1"
-                                        href="{{ route('products.edit', $product->id) }}">
-                                        <div class="notif-item">
-                                            <span class="dot" style="background:#f59e0b"></span>
-                                            <div class="flex-grow-1">
-                                                <div class="fw-semibold text-warning">Stok Menipis</div>
-                                                <div class="small text-muted">
-                                                    <strong>{{ $product->name }}</strong>
-                                                </div>
-                                                <div class="small mt-1">
-                                                    <span class="badge bg-warning text-dark">
-                                                        {{ $product->stock ?? 0 }} / {{ $product->min_stock ?? 0 }}
-                                                        tersisa
-                                                    </span>
-                                                </div>
-                                            </div>
-                                        </div>
-                                    </a>
-                                @endforeach
-                                <div class="dropdown-divider"></div>
-                            @endif
-
-                            {{-- 3. NOTIFIKASI PRODUK HAMPIR EXPIRED --}}
-                            @if ($expiringProducts->count() > 0)
-                                <div class="dropdown-header d-flex align-items-center gap-2 text-danger">
-                                    <i class="bi bi-calendar-x"></i>
-                                    <strong>Hampir Kedaluwarsa ({{ $expiringProducts->count() }})</strong>
-                                </div>
-                                @foreach ($expiringProducts as $product)
-                                    @php
-                                        $daysLeft = now()->diffInDays($product->expired_date);
-                                    @endphp
-                                    <a class="dropdown-item py-2 rounded mb-1"
-                                        href="{{ route('products.edit', $product->id) }}">
-                                        <div class="notif-item">
-                                            <span class="dot" style="background:#dc3545"></span>
-                                            <div class="flex-grow-1">
-                                                <div class="fw-semibold text-danger">Akan Expired</div>
-                                                <div class="small text-muted">
-                                                    <strong>{{ $product->name }}</strong>
-                                                </div>
-                                                <div class="small mt-1">
-                                                    <span class="badge bg-danger">
-                                                        {{ $daysLeft }} hari lagi
-                                                    </span>
-                                                    <span class="text-muted ms-1">
-                                                        {{ \Carbon\Carbon::parse($product->expired_date)->format('d M Y') }}
-                                                    </span>
-                                                </div>
-                                            </div>
-                                        </div>
-                                    </a>
-                                @endforeach
-                            @endif
-
-                            {{-- EMPTY STATE --}}
                             @if ($notifCount == 0)
                                 <div class="notif-empty">
                                     <i class="bi bi-check-circle text-success" style="font-size: 2.5rem;"></i>
@@ -645,7 +486,8 @@
                             <hr class="dropdown-divider">
                         </li>
                         <li>
-                            <form method="POST" action="{{ route('logout') }}">@csrf
+                            <form method="POST" action="{{ route('logout') }}">
+                                @csrf
                                 <button type="submit" class="dropdown-item">
                                     <i class="bi bi-box-arrow-right me-2"></i>Keluar
                                 </button>
@@ -657,12 +499,13 @@
                 {{-- Avatar --}}
                 <div class="dropdown">
                     <button class="avatar-btn" data-bs-toggle="dropdown" title="Akun">
-                        <img class="avatar-img" src="{{ $avatarUrl }}" alt="Avatar">
+                        <img class="avatar-img" src="{{ $avatarUrl }}" alt="Avatar" id="topAvatar">
                     </button>
                     <ul class="dropdown-menu dropdown-menu-end">
                         <li class="px-3 py-2">
                             <div class="fw-semibold">{{ $me?->name ?? 'Pengguna' }}</div>
                             <div class="small text-muted">{{ $me?->email ?? '-' }}</div>
+                            <div class="badge bg-primary mt-1 text-uppercase">{{ $me?->role ?? '-' }}</div>
                         </li>
                         <li>
                             <hr class="dropdown-divider">
@@ -671,7 +514,8 @@
                                 <i class="bi bi-gear me-2"></i>Pengaturan Profil
                             </a></li>
                         <li>
-                            <form method="POST" action="{{ route('logout') }}">@csrf
+                            <form method="POST" action="{{ route('logout') }}">
+                                @csrf
                                 <button type="submit" class="dropdown-item">
                                     <i class="bi bi-box-arrow-right me-2"></i>Keluar
                                 </button>
@@ -734,16 +578,17 @@
         </div>
     </div>
 
-    {{-- GRID --}}
-    <div class="wrap" id="layoutWrap">
-        {{-- SIDEBAR --}}
+    {{-- SIDEBAR & CONTENT --}}
+    <div class="wrap">
         <aside class="sidebar" id="sidebar">
             <div class="sidebar-inner">
                 <div class="profile">
-                    <div class="avatar"><img src="{{ $avatarUrl }}" alt="Avatar"></div>
+                    <div class="avatar">
+                        <img src="{{ $avatarUrl }}" alt="Avatar" id="sidebarAvatar">
+                    </div>
                     <div>
-                        <div class="fw-semibold">{{ $me?->name ?? 'Pengguna' }}</div>
-                        <div class="role">{{ ucfirst($me?->role ?? '-') }}</div>
+                        <div class="fw-semibold" id="sidebarName">{{ $me?->name ?? 'Pengguna' }}</div>
+                        <div class="role text-uppercase" id="sidebarRole">{{ $me?->role ?? '-' }}</div>
                     </div>
                 </div>
 
@@ -780,8 +625,7 @@
                 <nav class="nav nav-sidebar flex-column">
                     <a href="#purchaseSub"
                         class="nav-link {{ request()->is('purchases*') || request()->is('goods-receipt*') || request()->is('pembelian*') ? 'active' : '' }}"
-                        data-bs-toggle="collapse" role="button"
-                        aria-expanded="{{ request()->is('purchases*') || request()->is('goods-receipt*') || request()->is('pembelian*') ? 'true' : 'false' }}">
+                        data-bs-toggle="collapse" role="button">
                         <i data-feather="archive" class="icon"></i><span class="text">Pembelian</span>
                         <span class="ms-auto" data-feather="chevron-down"></span>
                     </a>
@@ -800,8 +644,7 @@
                 <nav class="nav nav-sidebar flex-column">
                     <a href="#masterSub"
                         class="nav-link {{ request()->is('products*') || request()->is('suppliers*') || request()->is('golongan-obat*') || request()->is('lokasi-obat*') || request()->is('apoteker*') ? 'active' : '' }}"
-                        data-bs-toggle="collapse" role="button"
-                        aria-expanded="{{ request()->is('products*') || request()->is('suppliers*') || request()->is('golongan-obat*') || request()->is('lokasi-obat*') || request()->is('apoteker*') ? 'true' : 'false' }}">
+                        data-bs-toggle="collapse" role="button">
                         <i data-feather="grid" class="icon"></i><span class="text">Master Data</span>
                         <span class="ms-auto" data-feather="chevron-down"></span>
                     </a>
@@ -824,33 +667,25 @@
                 <nav class="nav nav-sidebar flex-column mb-2">
                     <a href="#reportSub"
                         class="nav-link {{ request()->is('reports*') || request()->is('stockobat*') ? 'active' : '' }}"
-                        data-bs-toggle="collapse" role="button"
-                        aria-expanded="{{ request()->is('reports*') || request()->is('stockobat*') ? 'true' : 'false' }}">
+                        data-bs-toggle="collapse" role="button">
                         <i data-feather="bar-chart-2" class="icon"></i><span class="text">Laporan</span>
                         <span class="ms-auto" data-feather="chevron-down"></span>
                     </a>
                     <div class="collapse submenu {{ request()->is('reports*') || request()->is('stockobat*') ? 'show' : '' }}"
                         id="reportSub">
                         <a href="{{ route('reports.sales.index') }}"
-                            class="{{ request()->routeIs('reports.sales.*') ? 'active' : '' }}">Laporan Penjualan
-                        </a>
+                            class="{{ request()->routeIs('reports.sales.*') ? 'active' : '' }}">Laporan Penjualan</a>
                         <a href="{{ route('purchasing.suppliers.report') }}"
                             class="{{ request()->routeIs('purchasing.suppliers.report') ? 'active' : '' }}">Laporan
-                            Supplier
-                        </a>
+                            Supplier</a>
                         <a href="{{ route('stockobat.index') }}"
-                            class="{{ request()->routeIs('stockobat.*') ? 'active' : '' }}">Laporan Stok Obat
-                        </a>
+                            class="{{ request()->routeIs('stockobat.*') ? 'active' : '' }}">Laporan Stok Obat</a>
                         <a href="{{ route('reports.purchases.index') }}"
                             class="{{ request()->routeIs('reports.purchases.*') ? 'active' : '' }}">Laporan Purchase
-                            Order
-                        </a>
-
+                            Order</a>
                         <a href="{{ route('reports.pembelian.index') }}"
                             class="{{ request()->routeIs('reports.pembelian.*') ? 'active' : '' }}">Laporan
-                            Pembelian
-                        </a>
-
+                            Pembelian</a>
                         <a href="{{ route('reports.expired.index') }}"
                             class="{{ request()->routeIs('reports.expired.*') ? 'active' : '' }}">
                             <i class="bi bi-calendar-x text-danger me-1"></i> Laporan Expired
@@ -865,7 +700,6 @@
             </div>
         </aside>
 
-        {{-- CONTENT --}}
         <main class="content">
             @hasSection('breadcrumb')
                 <nav aria-label="breadcrumb" class="mb-3">
@@ -900,29 +734,39 @@
 
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
     <script>
-        // Sidebar mobile
+        // Sidebar mobile toggle
         const btnSidebar = document.getElementById('btnSidebar'),
             sidebar = document.getElementById('sidebar');
         btnSidebar?.addEventListener('click', () => sidebar.classList.toggle('show'));
 
-        // Shortcut search
-        window.addEventListener('keydown', (e) => {
-            if ((e.ctrlKey || e.metaKey) && e.key === '/') {
-                e.preventDefault();
-                const i = document.querySelector('.searchbar input');
-                i?.focus();
-                i?.select();
-            }
-        });
-
-        // Switch Account Form Handler
+        // Switch Account Form Handler dengan reload otomatis
         document.getElementById('switchAccountForm')?.addEventListener('submit', function(e) {
             const btn = this.querySelector('button[type="submit"]');
             btn.disabled = true;
             btn.innerHTML = '<span class="spinner-border spinner-border-sm me-2"></span>Memproses...';
+
+            // Set flag untuk reload setelah switch
+            sessionStorage.setItem('switching_account', 'true');
         });
 
+        // Auto reload setelah switch account berhasil
+        window.addEventListener('DOMContentLoaded', function() {
+            const switched = sessionStorage.getItem('switching_account');
+
+            if (switched === 'true') {
+                sessionStorage.removeItem('switching_account');
+
+                // Hard reload untuk memastikan semua data ter-refresh dari server
+                setTimeout(() => {
+                    window.location.reload(true);
+                }, 300);
+            }
+        });
+
+        // Initialize Feather Icons
         feather.replace();
+
+        // Initialize Bootstrap Tooltips
         Array.from(document.querySelectorAll('[data-bs-title]')).forEach(el => new bootstrap.Tooltip(el));
     </script>
 

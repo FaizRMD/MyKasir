@@ -128,8 +128,8 @@ class Product extends Model
         }
 
         $marginAmt            = max(0, $this->sell_price - $this->buy_price);
-        $this->margin_amount  = round($marginAmt, 2);
-        $this->margin_percent = round($this->sell_price > 0 ? ($marginAmt / $this->sell_price) * 100 : 0, 2);
+        $this->margin_amount  = (float) round($marginAmt, 2);
+        $this->margin_percent = (float) round($this->sell_price > 0 ? ($marginAmt / $this->sell_price) * 100 : 0, 2);
     }
 
     public function user()

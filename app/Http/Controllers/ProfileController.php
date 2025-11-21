@@ -2,128 +2,173 @@
 
 namespace App\Http\Controllers;
 
-use App\Models\User;
 use Illuminate\Http\Request;
-use Illuminate\Http\RedirectResponse;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Validation\Rule;
-use Symfony\Component\HttpFoundation\StreamedResponse;
 
 class ProfileController extends Controller
 {
+    /**
+     * Display the user's profile form.
+     */
     public function edit()
     {
-        $user = Auth::user();
-        return view('profile.edit', compact('user'));
-    }
-
-    public function update(Request $request): RedirectResponse
-    {
-        $user = Auth::user();
-
-        // Normalisasi email ke lowercase agar konsisten di DB & unik
-        if ($request->filled('email')) {
-            $request->merge(['email' => mb_strtolower($request->string('email'))]);
-        }
-
-        $data = $request->validate([
-            'name'          => ['required', 'string', 'max:255'],
-            'email'         => [
-                'required','string','email','max:255',
-                Rule::unique('users','email')->ignore($user->id),
-            ],
-            'password'      => ['nullable', 'confirmed', 'min:6'],
-            'photo'         => ['nullable', 'image', 'mimes:jpg,jpeg,png,webp', 'max:2048'],
-            'remove_photo'  => ['nullable', 'boolean'],
+        return view('profile.edit', [
+            'user' => Auth::user(),
         ]);
-
-        // Tentukan disk untuk avatar (pakai 'private' kalau dikonfigurasi)
-        $diskName = config('filesystems.disks.private') ? 'private' : 'local';
-        $disk     = Storage::disk($diskName);
-
-        // Hapus foto jika diminta
-        if ($request->boolean('remove_photo') && $user->profile_photo_path) {
-            if ($disk->exists($user->profile_photo_path)) {
-                $disk->delete($user->profile_photo_path);
-            }
-            $data['profile_photo_path'] = null;
-        }
-
-        // Upload foto baru
-        if ($request->hasFile('photo')) {
-            // Hapus lama jika ada
-            if ($user->profile_photo_path && $disk->exists($user->profile_photo_path)) {
-                $disk->delete($user->profile_photo_path);
-            }
-
-            // Simpan ke folder khusus user
-            $path = $request->file('photo')->store('avatars/'.$user->id, $diskName);
-            $data['profile_photo_path'] = $path;
-        }
-
-        // Password opsional
-        if (!empty($data['password'])) {
-            $data['password'] = Hash::make($data['password']);
-        } else {
-            unset($data['password']);
-        }
-
-        $user->update($data);
-
-        // (opsional) paksa update timestamp kalau yang berubah hanya foto
-        // $user->touch();
-
-        return back()->with('ok', 'Profil berhasil diperbarui.');
     }
 
     /**
-     * Stream avatar dari storage privat.
-     * URL: /avatar/{user}
+     * Update the user's profile information.
      */
-    public function avatar(User $user): StreamedResponse|RedirectResponse
+    public function update(Request $request)
     {
-        // Hanya pemilik (atau admin/owner) yang boleh mengakses avatar privat
-        $me = Auth::user();
-        abort_unless(
-            $me && ($me->id === $user->id || in_array($me->role ?? '', ['admin','owner'], true)),
-            403
-        );
+        $user = Auth::user();
 
-        $diskName = config('filesystems.disks.private') ? 'private' : 'local';
-        $disk     = Storage::disk($diskName);
-        $path     = $user->profile_photo_path;
-
-        // Fallback ke UI-Avatars bila belum ada file
-        if (!$path || !$disk->exists($path)) {
-            $fallback = 'https://ui-avatars.com/api/?name='
-                . urlencode($user->name ?? 'U')
-                . '&background=EAF1FF&color=0F172A';
-            return redirect()->away($fallback);
-        }
-
-        // Cache-friendly headers (ETag)
-        $etag = md5(($user->updated_at?->timestamp ?? time()).'|'.$path);
-        if (request()->headers->get('If-None-Match') === $etag) {
-            return response()->noContent(304);
-        }
-
-        $mime   = $disk->mimeType($path) ?: 'image/jpeg';
-        $stream = $disk->readStream($path);
-
-        abort_unless($stream !== false, 404);
-
-        return response()->stream(function () use ($stream) {
-            fpassthru($stream);
-            if (is_resource($stream)) {
-                fclose($stream);
-            }
-        }, 200, [
-            'Content-Type'  => $mime,
-            'Cache-Control' => 'public, max-age=86400',
-            'ETag'          => $etag,
-            'Content-Disposition' => 'inline; filename="avatar"',
+        // ✅ Validasi input
+        $validated = $request->validate([
+            'name' => ['required', 'string', 'max:255'],
+            'email' => ['required', 'string', 'email', 'max:255', Rule::unique('users')->ignore($user->id)],
+            'password' => ['nullable', 'string', 'min:6', 'confirmed'],
+            'photo' => ['nullable', 'image', 'mimes:jpg,jpeg,png,webp', 'max:2048'], // max 2MB
+            'remove_photo' => ['nullable', 'boolean'],
         ]);
+
+        // ✅ Update nama dan email
+        $user->name = $validated['name'];
+        $user->email = $validated['email'];
+
+        // ✅ Update password jika diisi
+        if (!empty($validated['password'])) {
+            $user->password = Hash::make($validated['password']);
+        }
+
+        // ✅ Handle foto profil
+        if ($request->hasFile('photo')) {
+            // Hapus foto lama jika ada
+            if ($user->profile_photo_path) {
+                Storage::disk('public')->delete($user->profile_photo_path);
+            }
+
+            // Upload foto baru
+            $path = $request->file('photo')->store('profile-photos', 'public');
+            $user->profile_photo_path = $path;
+        }
+        // ✅ Handle hapus foto
+        elseif ($request->has('remove_photo') && $request->remove_photo == '1') {
+            if ($user->profile_photo_path) {
+                Storage::disk('public')->delete($user->profile_photo_path);
+                $user->profile_photo_path = null;
+            }
+        }
+
+        // ✅ Simpan perubahan
+        $user->save();
+
+        return redirect()->route('profile.edit')->with('success', 'Profil berhasil diperbarui!');
+    }
+
+    /**
+     * Delete the user's account.
+     */
+    public function destroy(Request $request)
+    {
+        $request->validateWithBag('userDeletion', [
+            'password' => ['required', 'current_password'],
+        ]);
+
+        $user = Auth::user();
+
+        Auth::logout();
+
+        // Hapus foto profil jika ada
+        if ($user->profile_photo_path) {
+            Storage::disk('public')->delete($user->profile_photo_path);
+        }
+
+        $user->delete();
+
+        $request->session()->invalidate();
+        $request->session()->regenerateToken();
+
+        return redirect('/');
+    }
+
+    /**
+     * Display user avatar (with privacy control)
+     */
+    public function avatar(Request $request, $userId = null)
+    {
+        // Jika tidak ada userId, gunakan user yang login
+        $targetUserId = $userId ?? Auth::id();
+
+        // Cari user
+        $user = \App\Models\User::find($targetUserId);
+
+        if (!$user || !$user->profile_photo_path) {
+            // Return default avatar
+            $defaultAvatar = public_path('img/default-avatar.png');
+
+            if (file_exists($defaultAvatar)) {
+                return response()->file($defaultAvatar);
+            }
+
+            // Generate default avatar sederhana
+            return $this->generateDefaultAvatar($user?->name ?? 'User');
+        }
+
+        // Return foto profil user
+        $path = storage_path('app/public/' . $user->profile_photo_path);
+
+        if (!file_exists($path)) {
+            return $this->generateDefaultAvatar($user->name);
+        }
+
+        return response()->file($path);
+    }
+
+    /**
+     * Generate default avatar with initials
+     */
+    private function generateDefaultAvatar($name)
+    {
+        // Ambil inisial nama (max 2 huruf)
+        $words = explode(' ', $name);
+        $initials = '';
+        foreach ($words as $word) {
+            if (strlen($initials) < 2 && !empty($word)) {
+                $initials .= strtoupper(substr($word, 0, 1));
+            }
+        }
+        if (empty($initials)) {
+            $initials = 'U';
+        }
+
+        // Warna random berdasarkan nama
+        $colors = [
+            ['bg' => '#3B82F6', 'text' => '#FFFFFF'], // blue
+            ['bg' => '#10B981', 'text' => '#FFFFFF'], // green
+            ['bg' => '#F59E0B', 'text' => '#FFFFFF'], // amber
+            ['bg' => '#EF4444', 'text' => '#FFFFFF'], // red
+            ['bg' => '#8B5CF6', 'text' => '#FFFFFF'], // violet
+            ['bg' => '#EC4899', 'text' => '#FFFFFF'], // pink
+        ];
+        $colorIndex = abs(crc32($name)) % count($colors);
+        $color = $colors[$colorIndex];
+
+        // Buat SVG
+        $svg = <<<SVG
+<svg width="200" height="200" xmlns="http://www.w3.org/2000/svg">
+    <rect width="200" height="200" fill="{$color['bg']}"/>
+    <text x="100" y="100" font-family="Arial, sans-serif" font-size="80" font-weight="bold"
+          fill="{$color['text']}" text-anchor="middle" dominant-baseline="central">
+        {$initials}
+    </text>
+</svg>
+SVG;
+
+        return response($svg, 200)->header('Content-Type', 'image/svg+xml');
     }
 }
