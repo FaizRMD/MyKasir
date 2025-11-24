@@ -201,14 +201,19 @@ Route::middleware(['auth', 'role:admin|owner'])->group(function () {
     });
 
     /* ================= GOODS RECEIPT NOTE (GRN / PENERIMAAN BARANG) ================= */
-    Route::prefix('penerimaan-barang')->name('grn.')->group(function () {
+    /* ================= GOODS RECEIPT NOTE (GRN / PENERIMAAN BARANG) ================= */
+    Route::prefix('goods-receipts')->name('goods-receipts.')->group(function () {
         Route::get('/', [GoodsReceiptController::class, 'index'])->name('index');
-        Route::get('/create/{purchase}', [GoodsReceiptController::class, 'create'])
-            ->whereNumber('purchase')
+
+        // param {pembelian} -> akan di-resolve ke App\Models\Pembelian
+        Route::get('/create/{pembelian}', [GoodsReceiptController::class, 'create'])
+            ->whereNumber('pembelian')
             ->name('create');
-        Route::post('/{purchase}', [GoodsReceiptController::class, 'store'])
-            ->whereNumber('purchase')
+
+        Route::post('/{pembelian}', [GoodsReceiptController::class, 'store'])
+            ->whereNumber('pembelian')
             ->name('store');
+
         Route::get('/{grn}', [GoodsReceiptController::class, 'show'])
             ->whereNumber('grn')
             ->name('show');
@@ -259,6 +264,11 @@ Route::middleware(['auth', 'role:admin|owner'])->group(function () {
         // ✅ PO detail route (harus TERAKHIR)
         Route::get('/po/{poNo}', [PembelianController::class, 'getPO'])->name('po.get');
         Route::get('/get-po/{poNo}', [PembelianController::class, 'getPO'])->name('get-po');
+
+        // ✅ TAMBAHKAN INI untuk recalculate data lama
+        Route::post('/{id}/recalculate', [PembelianController::class, 'recalculate'])
+            ->whereNumber('id')
+            ->name('recalculate');
     });
 
     /* ================= STOCK OBAT (INVENTORY) ================= */
@@ -319,6 +329,8 @@ Route::middleware(['auth', 'role:admin|owner'])->group(function () {
             Route::get('/api/statistics', [PembelianReportController::class, 'statistics'])->name('statistics');
             Route::get('/items/report', [PembelianReportController::class, 'itemsReport'])->name('items');
             Route::get('/hutang/report', [PembelianReportController::class, 'hutangReport'])->name('hutang');
+
+
 
             // Main routes
             Route::get('/', [PembelianReportController::class, 'index'])->name('index');

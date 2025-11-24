@@ -124,13 +124,13 @@
             color: white;
         }
 
-        .btn-info {
-            background: #17a2b8;
+        .btn-danger {
+            background: #dc3545;
             color: white;
         }
 
-        .btn-info:hover {
-            background: #138496;
+        .btn-danger:hover {
+            background: #c82333;
             color: white;
         }
 
@@ -283,6 +283,37 @@
             margin-bottom: 0.5rem;
         }
 
+        .alert {
+            padding: 1rem 1.5rem;
+            margin-bottom: 1.5rem;
+            border-radius: 8px;
+            display: flex;
+            align-items: center;
+            gap: 0.75rem;
+        }
+
+        .alert-success {
+            background: #d4edda;
+            color: #155724;
+            border: 1px solid #c3e6cb;
+        }
+
+        .alert-danger {
+            background: #f8d7da;
+            color: #721c24;
+            border: 1px solid #f5c6cb;
+        }
+
+        .btn-recalculate {
+            background: #ffc107;
+            color: #000;
+        }
+
+        .btn-recalculate:hover {
+            background: #e0a800;
+            color: #000;
+        }
+
         @media (max-width: 768px) {
             .reports-container {
                 padding: 1rem;
@@ -323,6 +354,29 @@
             <p class="page-subtitle">Kelola dan analisis data pembelian barang</p>
         </div>
 
+        <!-- Alert Messages -->
+        @if (session('success'))
+            <div class="alert alert-success">
+                <svg width="24" height="24" fill="currentColor" viewBox="0 0 20 20">
+                    <path fill-rule="evenodd"
+                        d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z"
+                        clip-rule="evenodd" />
+                </svg>
+                {{ session('success') }}
+            </div>
+        @endif
+
+        @if (session('error'))
+            <div class="alert alert-danger">
+                <svg width="24" height="24" fill="currentColor" viewBox="0 0 20 20">
+                    <path fill-rule="evenodd"
+                        d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.707 7.293a1 1 0 00-1.414 1.414L8.586 10l-1.293 1.293a1 1 0 101.414 1.414L10 11.414l1.293 1.293a1 1 0 001.414-1.414L11.414 10l1.293-1.293a1 1 0 00-1.414-1.414L10 8.586 8.707 7.293z"
+                        clip-rule="evenodd" />
+                </svg>
+                {{ session('error') }}
+            </div>
+        @endif
+
         <!-- Filter Card -->
         <div class="filter-card">
             <div class="filter-title">
@@ -335,14 +389,12 @@
 
             <form method="GET" action="{{ route('reports.pembelian.index') }}">
                 <div class="filter-grid">
-                    <!-- Search -->
                     <div class="form-group">
                         <label class="form-label">Pencarian</label>
                         <input type="text" name="q" class="form-control"
                             placeholder="Cari PO, Invoice, Supplier..." value="{{ request('q') }}">
                     </div>
 
-                    <!-- Payment Type -->
                     <div class="form-group">
                         <label class="form-label">Tipe Pembayaran</label>
                         <select name="payment_type" class="form-control">
@@ -355,13 +407,11 @@
                         </select>
                     </div>
 
-                    <!-- Date From -->
                     <div class="form-group">
                         <label class="form-label">Dari Tanggal</label>
                         <input type="date" name="from" class="form-control" value="{{ request('from') }}">
                     </div>
 
-                    <!-- Date To -->
                     <div class="form-group">
                         <label class="form-label">Sampai Tanggal</label>
                         <input type="date" name="to" class="form-control" value="{{ request('to') }}">
@@ -392,11 +442,11 @@
             <div class="stats-grid">
                 <div class="stat-card">
                     <div class="stat-label">Total Pembelian</div>
-                    <div class="stat-value">{{ $pembelians->total() }}</div>
+                    <div class="stat-value">{{ number_format($pembelians->total(), 0, ',', '.') }}</div>
                 </div>
                 <div class="stat-card">
                     <div class="stat-label">Total Items</div>
-                    <div class="stat-value">{{ $pembelians->sum('items_count') }}</div>
+                    <div class="stat-value">{{ number_format($pembelians->sum('items_count'), 0, ',', '.') }}</div>
                 </div>
                 <div class="stat-card">
                     <div class="stat-label">Total Nilai</div>
@@ -409,18 +459,22 @@
         <div class="data-card">
             <div class="data-header">
                 <h2 class="data-title">Data Pembelian</h2>
-                <div style="display: flex; gap: 0.5rem;">
-                    <a href="#" class="btn btn-success btn-sm">
-                        <svg width="16" height="16" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
-                                d="M7 21h10a2 2 0 002-2V9.414a1 1 0 00-.293-.707l-5.414-5.414A1 1 0 0012.586 3H7a2 2 0 00-2 2v14a2 2 0 002 2z" />
+                <div style="display: flex; gap: 0.5rem; flex-wrap: wrap;">
+                    <a href="{{ route('reports.pembelian.export.pdf') }}" class="btn btn-danger btn-sm">
+                        <svg width="16" height="16" fill="currentColor" viewBox="0 0 20 20">
+                            <path fill-rule="evenodd"
+                                d="M6 2a2 2 0 00-2 2v12a2 2 0 002 2h8a2 2 0 002-2V7.414A2 2 0 0015.414 6L12 2.586A2 2 0 0010.586 2H6zm5 6a1 1 0 10-2 0v3.586l-1.293-1.293a1 1 0 10-1.414 1.414l3 3a1 1 0 001.414 0l3-3a1 1 0 00-1.414-1.414L11 11.586V8z"
+                                clip-rule="evenodd" />
                         </svg>
-                        <a href="{{ route('reports.pembelian.export.pdf') }}" class="btn btn-danger btn-sm">
-                            Export PDF
-                        </a>
-                        <a href="{{ route('reports.pembelian.export.excel') }}" class="btn btn-success btn-sm">
-                            Export Excel
-                        </a>
+                        Export PDF
+                    </a>
+                    <a href="{{ route('reports.pembelian.export.excel') }}" class="btn btn-success btn-sm">
+                        <svg width="16" height="16" fill="currentColor" viewBox="0 0 20 20">
+                            <path fill-rule="evenodd"
+                                d="M3 17a1 1 0 011-1h12a1 1 0 110 2H4a1 1 0 01-1-1zM6.293 6.707a1 1 0 010-1.414l3-3a1 1 0 011.414 0l3 3a1 1 0 01-1.414 1.414L11 5.414V13a1 1 0 11-2 0V5.414L7.707 6.707a1 1 0 01-1.414 0z"
+                                clip-rule="evenodd" />
+                        </svg>
+                        Export Excel
                     </a>
                 </div>
             </div>
@@ -437,23 +491,17 @@
                             <th style="text-align: center;">Items</th>
                             <th>Tipe Bayar</th>
                             <th style="text-align: right;">Total</th>
-                            <th style="text-align: center; width: 150px;">Aksi</th>
+                            <th style="text-align: center; width: 200px;">Aksi</th>
                         </tr>
                     </thead>
                     <tbody>
                         @forelse($pembelians as $index => $pembelian)
                             <tr>
                                 <td style="text-align: center;">{{ $pembelians->firstItem() + $index }}</td>
-                                <td>
-                                    <strong>{{ $pembelian->po_no }}</strong>
-                                </td>
+                                <td><strong>{{ $pembelian->po_no }}</strong></td>
                                 <td>{{ $pembelian->invoice_no ?? '-' }}</td>
-                                <td>
-                                    {{ \Carbon\Carbon::parse($pembelian->invoice_date)->format('d M Y') }}
-                                </td>
-                                <td>
-                                    <strong>{{ $pembelian->supplier->name ?? '-' }}</strong>
-                                </td>
+                                <td>{{ \Carbon\Carbon::parse($pembelian->invoice_date)->format('d M Y') }}</td>
+                                <td><strong>{{ $pembelian->supplier->name ?? '-' }}</strong></td>
                                 <td style="text-align: center;">
                                     <span class="badge badge-info">{{ $pembelian->items_count }} items</span>
                                 </td>
@@ -470,6 +518,9 @@
                                 </td>
                                 <td style="text-align: right;">
                                     <strong>Rp {{ number_format($pembelian->net_total, 0, ',', '.') }}</strong>
+                                    @if ($pembelian->net_total == 0)
+                                        <br><small style="color: #dc3545;">⚠️ Total kosong</small>
+                                    @endif
                                 </td>
                                 <td style="text-align: center;">
                                     <a href="{{ route('reports.pembelian.show', $pembelian->id) }}"
@@ -483,6 +534,21 @@
                                         </svg>
                                         Detail
                                     </a>
+                                    @if ($pembelian->net_total == 0)
+                                        <form action="{{ route('pembelian.recalculate', $pembelian->id) }}"
+                                            method="POST" style="display: inline-block; margin-left: 0.25rem;">
+                                            @csrf
+                                            <button type="submit" class="btn btn-recalculate btn-sm"
+                                                onclick="return confirm('Hitung ulang total untuk PO ini?')">
+                                                <svg width="16" height="16" fill="none" stroke="currentColor"
+                                                    viewBox="0 0 24 24">
+                                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                                                        d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+                                                </svg>
+                                                Fix
+                                            </button>
+                                        </form>
+                                    @endif
                                 </td>
                             </tr>
                         @empty
@@ -505,12 +571,10 @@
             @if ($pembelians->hasPages())
                 <div class="pagination-wrapper">
                     <div class="pagination-info">
-                        Menampilkan {{ $pembelians->firstItem() }} - {{ $pembelians->lastItem() }}
-                        dari {{ $pembelians->total() }} data
+                        Menampilkan {{ $pembelians->firstItem() }} - {{ $pembelians->lastItem() }} dari
+                        {{ $pembelians->total() }} data
                     </div>
-                    <div>
-                        {{ $pembelians->links() }}
-                    </div>
+                    <div>{{ $pembelians->links() }}</div>
                 </div>
             @endif
         </div>
