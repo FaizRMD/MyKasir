@@ -9,8 +9,37 @@
 @endsection
 
 @section('content')
+
+    <!-- FIX: CSS supaya ikon pagination tidak membesar -->
+    <style>
+        /* Ikon pada tombol pagination */
+        .pagination-icon,
+        .pagination-icon::before {
+            font-size: 16px !important;
+            width: 16px !important;
+            height: 16px !important;
+            line-height: 1 !important;
+            display: inline-block !important;
+        }
+
+        /* Handle khusus ikon bootstrap */
+        .bi-chevron-left,
+        .bi-chevron-right {
+            font-size: 16px !important;
+            width: 16px !important;
+            height: 16px !important;
+        }
+
+        /* Tombol pagination */
+        .btn-pagination {
+            padding: 4px 12px !important;
+            font-size: 14px !important;
+        }
+    </style>
+
     <div class="container-fluid">
-        <!-- Header & Actions -->
+
+        <!-- Header -->
         <div class="d-flex justify-content-between align-items-center mb-4">
             <div>
                 <h2 class="mb-1">
@@ -18,6 +47,7 @@
                 </h2>
                 <p class="text-muted mb-0">Monitoring obat yang sudah atau akan expired</p>
             </div>
+
             <div class="d-flex gap-2">
                 <button type="button" class="btn btn-success" onclick="exportReport('excel')">
                     <i class="bi bi-file-earmark-excel"></i> Export Excel
@@ -28,87 +58,86 @@
             </div>
         </div>
 
-        <!-- Statistics Cards -->
+        <!-- Statistik -->
         <div class="row mb-4">
+
             <div class="col-md-3">
                 <div class="card border-danger">
-                    <div class="card-body">
-                        <div class="d-flex justify-content-between align-items-center">
-                            <div>
-                                <p class="text-muted mb-1 small">Sudah Expired</p>
-                                <h3 class="mb-0 text-danger fw-bold">{{ $stats['total_expired'] }}</h3>
-                            </div>
-                            <div class="bg-danger bg-opacity-10 p-3 rounded-circle">
-                                <i class="bi bi-x-circle text-danger" style="font-size: 1.8rem;"></i>
-                            </div>
+                    <div class="card-body d-flex justify-content-between">
+                        <div>
+                            <p class="text-muted mb-1 small">Sudah Expired</p>
+                            <h3 class="text-danger fw-bold">{{ $stats['total_expired'] }}</h3>
+                        </div>
+                        <div class="bg-danger bg-opacity-10 p-3 rounded-circle">
+                            <i class="bi bi-x-circle text-danger" style="font-size: 1.8rem;"></i>
                         </div>
                     </div>
                 </div>
             </div>
+
             <div class="col-md-3">
                 <div class="card border-warning">
-                    <div class="card-body">
-                        <div class="d-flex justify-content-between align-items-center">
-                            <div>
-                                <p class="text-muted mb-1 small">Akan Expired</p>
-                                <h3 class="mb-0 text-warning fw-bold">{{ $stats['total_will_expire'] }}</h3>
-                            </div>
-                            <div class="bg-warning bg-opacity-10 p-3 rounded-circle">
-                                <i class="bi bi-exclamation-triangle text-warning" style="font-size: 1.8rem;"></i>
-                            </div>
+                    <div class="card-body d-flex justify-content-between">
+                        <div>
+                            <p class="text-muted mb-1 small">Akan Expired</p>
+                            <h3 class="text-warning fw-bold">{{ $stats['total_will_expire'] }}</h3>
+                        </div>
+                        <div class="bg-warning bg-opacity-10 p-3 rounded-circle">
+                            <i class="bi bi-exclamation-triangle text-warning" style="font-size: 1.8rem;"></i>
                         </div>
                     </div>
                 </div>
             </div>
+
             <div class="col-md-3">
                 <div class="card border-success">
-                    <div class="card-body">
-                        <div class="d-flex justify-content-between align-items-center">
-                            <div>
-                                <p class="text-muted mb-1 small">Masih Aman</p>
-                                <h3 class="mb-0 text-success fw-bold">{{ $stats['total_safe'] }}</h3>
-                            </div>
-                            <div class="bg-success bg-opacity-10 p-3 rounded-circle">
-                                <i class="bi bi-check-circle text-success" style="font-size: 1.8rem;"></i>
-                            </div>
+                    <div class="card-body d-flex justify-content-between">
+                        <div>
+                            <p class="text-muted mb-1 small">Masih Aman</p>
+                            <h3 class="text-success fw-bold">{{ $stats['total_safe'] }}</h3>
+                        </div>
+                        <div class="bg-success bg-opacity-10 p-3 rounded-circle">
+                            <i class="bi bi-check-circle text-success" style="font-size: 1.8rem;"></i>
                         </div>
                     </div>
                 </div>
             </div>
+
             <div class="col-md-3">
                 <div class="card border-dark">
-                    <div class="card-body">
-                        <div class="d-flex justify-content-between align-items-center">
-                            <div>
-                                <p class="text-muted mb-1 small">Nilai Kerugian</p>
-                                <h3 class="mb-0 fw-bold">Rp {{ number_format($stats['loss_value'], 0, ',', '.') }}</h3>
-                            </div>
-                            <div class="bg-dark bg-opacity-10 p-3 rounded-circle">
-                                <i class="bi bi-cash-stack text-dark" style="font-size: 1.8rem;"></i>
-                            </div>
+                    <div class="card-body d-flex justify-content-between">
+                        <div>
+                            <p class="text-muted mb-1 small">Nilai Kerugian</p>
+                            <h3 class="fw-bold">
+                                Rp {{ number_format($stats['loss_value'], 0, ',', '.') }}
+                            </h3>
+                        </div>
+                        <div class="bg-dark bg-opacity-10 p-3 rounded-circle">
+                            <i class="bi bi-cash-stack text-dark" style="font-size: 1.8rem;"></i>
                         </div>
                     </div>
                 </div>
             </div>
+
         </div>
 
-        <!-- Filter & Search -->
+        <!-- Filter -->
         <div class="card mb-4">
             <div class="card-body">
-                <form method="GET" action="{{ route('reports.expired.index') }}" class="row g-3">
+                <form class="row g-3" method="GET" action="{{ route('reports.expired.index') }}">
                     <div class="col-md-3">
                         <label class="form-label fw-semibold">Status</label>
                         <select name="status" class="form-select" onchange="this.form.submit()">
                             <option value="semua" {{ $filterStatus == 'semua' ? 'selected' : '' }}>Semua</option>
-                            <option value="expired" {{ $filterStatus == 'expired' ? 'selected' : '' }}>Sudah Expired
+                            <option value="expired" {{ $filterStatus == 'expired' ? 'selected' : '' }}>Sudah Expired</option>
+                            <option value="akan_expired" {{ $filterStatus == 'akan_expired' ? 'selected' : '' }}>Akan Expired
                             </option>
-                            <option value="akan_expired" {{ $filterStatus == 'akan_expired' ? 'selected' : '' }}>Akan
-                                Expired</option>
                             <option value="aman" {{ $filterStatus == 'aman' ? 'selected' : '' }}>Masih Aman</option>
                         </select>
                     </div>
+
                     <div class="col-md-3">
-                        <label class="form-label fw-semibold">Rentang Hari (untuk "Akan Expired")</label>
+                        <label class="form-label fw-semibold">Rentang Hari</label>
                         <select name="days" class="form-select" onchange="this.form.submit()">
                             <option value="7" {{ $filterDays == 7 ? 'selected' : '' }}>7 Hari</option>
                             <option value="14" {{ $filterDays == 14 ? 'selected' : '' }}>14 Hari</option>
@@ -117,17 +146,16 @@
                             <option value="90" {{ $filterDays == 90 ? 'selected' : '' }}>90 Hari</option>
                         </select>
                     </div>
+
                     <div class="col-md-6">
                         <label class="form-label fw-semibold">Pencarian</label>
                         <div class="input-group">
                             <input type="text" name="search" class="form-control"
-                                placeholder="Cari nama produk, kode, atau batch..." value="{{ $search }}">
-                            <button class="btn btn-brand" type="submit">
-                                <i class="bi bi-search"></i> Cari
-                            </button>
+                                placeholder="Cari produk, kode, batch..." value="{{ $search }}">
+                            <button class="btn btn-brand" type="submit"><i class="bi bi-search"></i></button>
                             @if ($search)
                                 <a href="{{ route('reports.expired.index') }}" class="btn btn-light-soft">
-                                    <i class="bi bi-x-circle"></i> Reset
+                                    <i class="bi bi-x-circle"></i>
                                 </a>
                             @endif
                         </div>
@@ -136,25 +164,27 @@
             </div>
         </div>
 
-        <!-- Data Table -->
+        <!-- Table -->
         <div class="card">
             <div class="card-body">
+
                 <div class="table-responsive">
-                    <table class="table table-modern table-hover align-middle">
+                    <table class="table table-modern align-middle">
                         <thead>
                             <tr>
-                                <th width="5%">No</th>
-                                <th width="10%">Kode</th>
-                                <th width="20%">Nama Produk</th>
-                                <th width="10%">Batch No</th>
-                                <th width="10%">Tgl Expired</th>
-                                <th width="10%" class="text-center">Hari Tersisa</th>
-                                <th width="8%" class="text-end">Qty</th>
-                                <th width="12%" class="text-end">Nilai</th>
-                                <th width="10%">Invoice</th>
-                                <th width="5%" class="text-center">Status</th>
+                                <th>No</th>
+                                <th>Kode</th>
+                                <th>Nama Produk</th>
+                                <th>Batch</th>
+                                <th>Tgl Expired</th>
+                                <th class="text-center">Hari</th>
+                                <th class="text-end">Qty</th>
+                                <th class="text-end">Nilai</th>
+                                <th>Invoice</th>
+                                <th>Status</th>
                             </tr>
                         </thead>
+
                         <tbody>
                             @forelse($items as $index => $item)
                                 @php
@@ -162,70 +192,44 @@
                                     $statusClass = $daysLeft < 0 ? 'danger' : ($daysLeft <= 30 ? 'warning' : 'success');
                                     $statusText =
                                         $daysLeft < 0 ? 'EXPIRED' : ($daysLeft <= 30 ? 'AKAN EXPIRED' : 'AMAN');
-                                    $totalValue = $item->qty * $item->buy_price;
                                 @endphp
                                 <tr>
                                     <td>{{ $items->firstItem() + $index }}</td>
-                                    <td><code class="text-dark">{{ $item->product_code ?? '-' }}</code></td>
+                                    <td>{{ $item->product_code }}</td>
                                     <td>
-                                        <strong>{{ $item->product_name }}</strong>
-                                        @if ($item->supplier_name)
-                                            <br><small class="text-muted">{{ $item->supplier_name }}</small>
-                                        @endif
+                                        <strong>{{ $item->product_name }}</strong><br>
+                                        <small class="text-muted">{{ $item->supplier_name }}</small>
                                     </td>
-                                    <td>
-                                        @if ($item->batch_no)
-                                            <span class="badge bg-secondary">{{ $item->batch_no }}</span>
-                                        @else
-                                            <span class="text-muted">-</span>
-                                        @endif
-                                    </td>
+                                    <td>{{ $item->batch_no ?: '-' }}</td>
                                     <td>{{ \Carbon\Carbon::parse($item->exp_date)->format('d M Y') }}</td>
+
                                     <td class="text-center">
-                                        @if ($daysLeft < 0)
-                                            <span class="badge bg-danger">
-                                                <i class="bi bi-x-circle"></i> Lewat {{ abs($daysLeft) }} hari
-                                            </span>
-                                        @elseif($daysLeft <= 7)
-                                            <span class="badge bg-danger">
-                                                <i class="bi bi-exclamation-triangle"></i> {{ $daysLeft }} hari
-                                            </span>
-                                        @elseif($daysLeft <= 30)
-                                            <span class="badge bg-warning text-dark">
-                                                <i class="bi bi-clock"></i> {{ $daysLeft }} hari
-                                            </span>
-                                        @else
-                                            <span class="badge bg-success">
-                                                <i class="bi bi-check-circle"></i> {{ $daysLeft }} hari
-                                            </span>
-                                        @endif
+                                        <span class="badge bg-{{ $statusClass }}">{{ $daysLeft }} hari</span>
                                     </td>
+
+                                    <td class="text-end">{{ number_format($item->qty, 0) }} {{ $item->uom }}</td>
+
                                     <td class="text-end">
-                                        <strong>{{ number_format($item->qty, 0) }}</strong> {{ $item->uom }}
+                                        <strong>Rp {{ number_format($item->qty * $item->buy_price, 0, ',', '.') }}</strong>
                                     </td>
-                                    <td class="text-end">
-                                        <strong>Rp {{ number_format($totalValue, 0, ',', '.') }}</strong>
-                                        <br><small class="text-muted">@ Rp
-                                            {{ number_format($item->buy_price, 0, ',', '.') }}</small>
-                                    </td>
+
                                     <td>
-                                        @if ($item->invoice_no)
-                                            <small>{{ $item->invoice_no }}</small>
-                                            <br><small
-                                                class="text-muted">{{ \Carbon\Carbon::parse($item->invoice_date)->format('d/m/Y') }}</small>
-                                        @else
-                                            <span class="text-muted">-</span>
-                                        @endif
+                                        <small>{{ $item->invoice_no }}</small><br>
+                                        <small class="text-muted">
+                                            {{ \Carbon\Carbon::parse($item->invoice_date)->format('d/m/Y') }}
+                                        </small>
                                     </td>
-                                    <td class="text-center">
+
+                                    <td>
                                         <span class="badge bg-{{ $statusClass }}">{{ $statusText }}</span>
                                     </td>
                                 </tr>
+
                             @empty
                                 <tr>
                                     <td colspan="10" class="text-center py-5">
-                                        <i class="bi bi-inbox" style="font-size: 3rem; color: #ccc;"></i>
-                                        <p class="text-muted mt-2">Tidak ada data</p>
+                                        <i class="bi bi-inbox" style="font-size: 3rem; color:#ccc;"></i>
+                                        <p class="text-muted">Tidak ada data</p>
                                     </td>
                                 </tr>
                             @endforelse
@@ -234,11 +238,38 @@
                 </div>
 
                 <!-- Pagination -->
-                <div class="mt-3">
-                    {{ $items->links() }}
-                </div>
+                @if ($items->hasPages())
+                    @php $paginator = $items->appends(request()->query()); @endphp
+
+                    <div class="d-flex justify-content-between align-items-center mt-3">
+
+                        <div class="small text-muted">
+                            Menampilkan {{ $items->firstItem() }} - {{ $items->lastItem() }}
+                            dari {{ $items->total() }} data
+                        </div>
+
+                        <div class="btn-group">
+
+                            <a href="{{ $items->onFirstPage() ? '#' : $paginator->previousPageUrl() }}"
+                                class="btn btn-outline-secondary btn-sm btn-pagination
+                               {{ $items->onFirstPage() ? 'disabled' : '' }}">
+                                <i class="bi bi-chevron-left pagination-icon"></i> Previous
+                            </a>
+
+                            <a href="{{ $items->hasMorePages() ? $paginator->nextPageUrl() : '#' }}"
+                                class="btn btn-outline-secondary btn-sm btn-pagination
+                               {{ $items->hasMorePages() ? '' : 'disabled' }}">
+                                Next <i class="bi bi-chevron-right pagination-icon"></i>
+                            </a>
+
+                        </div>
+
+                    </div>
+                @endif
+
             </div>
         </div>
+
     </div>
 
     @push('scripts')
@@ -250,4 +281,5 @@
             }
         </script>
     @endpush
+
 @endsection

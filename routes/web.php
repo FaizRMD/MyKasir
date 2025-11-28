@@ -55,7 +55,6 @@ Route::middleware('auth')->group(function () {
     Route::prefix('profile')->name('profile.')->group(function () {
         Route::get('/', [ProfileController::class, 'edit'])->name('edit');
 
-        // ✅ FIX: Tambahkan support untuk PUT dan PATCH
         Route::match(['PUT', 'PATCH'], '/', [ProfileController::class, 'update'])->name('update');
 
         Route::delete('/', [ProfileController::class, 'destroy'])->name('destroy');
@@ -88,15 +87,17 @@ Route::middleware(['auth', 'role:kasir|admin|owner'])->group(function () {
         Route::get('/', [SaleItemController::class, 'index'])->name('index');
         Route::get('/create', [SaleItemController::class, 'create'])->name('create');
         Route::post('/checkout', [SaleItemController::class, 'checkout'])->name('checkout');
+
         Route::get('/{sale}', [SaleItemController::class, 'show'])
             ->whereNumber('sale')
             ->name('show');
+
         Route::get('/{sale}/struk', [SaleItemController::class, 'printReceipt'])
             ->whereNumber('sale')
             ->name('struk');
     });
 
-    /* ================= SALE ITEMS API (untuk AJAX/API) ================= */
+    /* ================= SALE ITEMS API (untuk AJAX/API POS) ================= */
     Route::prefix('sale-items')->name('sale-items.')->group(function () {
         Route::post('/', [SaleItemController::class, 'store'])->name('store');
         Route::get('/{saleItem}', [SaleItemController::class, 'show'])
@@ -110,9 +111,17 @@ Route::middleware(['auth', 'role:kasir|admin|owner'])->group(function () {
             ->name('destroy');
     });
 
-    /* ================= PRODUCT LOOKUP (untuk POS) ================= */
+    /* ================= PRODUCT LOOKUP UNTUK POS =================
+     * Route inilah yang dipakai di Blade:
+     *   route('products.lookup')
+     * HARUS bisa diakses kasir, admin, dan owner.
+     */
     Route::get('/products/lookup', [ProductController::class, 'lookup'])
         ->name('products.lookup');
+
+    // (opsional) kalau mau quick add product dari POS juga:
+    // Route::post('/products/quick-store', [ProductController::class, 'quickStore'])
+    //     ->name('products.quickStore');
 });
 
 /*
@@ -125,35 +134,32 @@ Route::middleware(['auth', 'role:admin|owner'])->group(function () {
 
     /* ================= PRODUCTS MANAGEMENT ================= */
     Route::prefix('products')->name('products.')->group(function () {
-        // ✅ Export routes (harus SEBELUM resource)
+        // Export routes
         Route::get('/export/pdf', [ProductController::class, 'exportPdf'])->name('export.pdf');
         Route::get('/export/xlsx', [ProductController::class, 'exportXlsx'])->name('export.xlsx');
         Route::get('/export/xls', [ProductController::class, 'exportXls'])->name('export.xls');
 
-        // ✅ Quick store untuk form tambah cepat
+        // Quick store untuk form tambah cepat (khusus admin/owner)
         Route::post('/quick-store', [ProductController::class, 'quickStore'])->name('quickStore');
 
-        // ✅ Lookup (harus sebelum resource untuk menghindari konflik dengan {product})
-        Route::get('/lookup', [ProductController::class, 'lookup'])->name('lookup');
+        // ⚠️ TIDAK ADA /lookup di sini, supaya tidak menimpa route POS
+        // Route::get('/lookup', [ProductController::class, 'lookup'])->name('lookup');
     });
 
-    // ✅ Resource Products
+    // Resource Products
     Route::resource('products', ProductController::class)
         ->parameters(['products' => 'product'])
         ->whereNumber('product');
 
     /* ================= SUPPLIERS MANAGEMENT ================= */
     Route::prefix('suppliers')->name('suppliers.')->group(function () {
-        // ✅ Lookup & Export (harus SEBELUM resource)
         Route::get('/lookup', [SupplierController::class, 'lookup'])->name('lookup');
         Route::get('/export/csv', [SupplierController::class, 'exportCsv'])->name('export.csv');
     });
 
-    // ✅ Resource Suppliers
     Route::resource('suppliers', SupplierController::class)
         ->whereNumber('supplier');
 
-    // ✅ Additional Supplier Routes (harus SETELAH resource)
     Route::prefix('suppliers')->name('suppliers.')->group(function () {
         Route::get('/{supplier}/create-po', [SupplierController::class, 'createPurchase'])
             ->whereNumber('supplier')
@@ -181,16 +187,13 @@ Route::middleware(['auth', 'role:admin|owner'])->group(function () {
 
     /* ================= PURCHASE ORDERS (PO) ================= */
     Route::prefix('purchases')->name('purchases.')->group(function () {
-        // ✅ Product lookup (harus SEBELUM resource)
         Route::get('/products-lookup', [PurchaseController::class, 'productsLookup'])
             ->name('productsLookup');
     });
 
-    // ✅ Resource Purchases
     Route::resource('purchases', PurchaseController::class)
         ->whereNumber('purchase');
 
-    // ✅ Additional Purchase Routes (harus SETELAH resource)
     Route::prefix('purchases')->name('purchases.')->group(function () {
         Route::post('/{purchase}/submit', [PurchaseController::class, 'submit'])
             ->whereNumber('purchase')
@@ -201,11 +204,9 @@ Route::middleware(['auth', 'role:admin|owner'])->group(function () {
     });
 
     /* ================= GOODS RECEIPT NOTE (GRN / PENERIMAAN BARANG) ================= */
-    /* ================= GOODS RECEIPT NOTE (GRN / PENERIMAAN BARANG) ================= */
     Route::prefix('goods-receipts')->name('goods-receipts.')->group(function () {
         Route::get('/', [GoodsReceiptController::class, 'index'])->name('index');
 
-        // param {pembelian} -> akan di-resolve ke App\Models\Pembelian
         Route::get('/create/{pembelian}', [GoodsReceiptController::class, 'create'])
             ->whereNumber('pembelian')
             ->name('create');
@@ -219,20 +220,7 @@ Route::middleware(['auth', 'role:admin|owner'])->group(function () {
             ->name('show');
     });
 
-    // ✅ Alias untuk backward compatibility
-    Route::prefix('goods-receipts')->name('goods-receipts.')->group(function () {
-        Route::get('/', [GoodsReceiptController::class, 'index'])->name('index');
-        Route::get('/create/{purchase}', [GoodsReceiptController::class, 'create'])
-            ->whereNumber('purchase')
-            ->name('create');
-        Route::post('/{purchase}', [GoodsReceiptController::class, 'store'])
-            ->whereNumber('purchase')
-            ->name('store');
-        Route::get('/{grn}', [GoodsReceiptController::class, 'show'])
-            ->whereNumber('grn')
-            ->name('show');
-    });
-
+    // Alias tunggal (jika masih dipakai di UI lama)
     Route::prefix('goods-receipt')->name('goods-receipt.')->group(function () {
         Route::get('/', [GoodsReceiptController::class, 'index'])->name('index');
         Route::get('/create/{purchase}', [GoodsReceiptController::class, 'create'])
@@ -248,24 +236,19 @@ Route::middleware(['auth', 'role:admin|owner'])->group(function () {
 
     /* ================= PEMBELIAN (DIRECT PURCHASE) ================= */
     Route::prefix('pembelian')->name('pembelian.')->group(function () {
-        // ✅ Lookup/Search routes (harus PERTAMA untuk menghindari konflik)
         Route::get('/po/search', [PembelianController::class, 'searchPO'])->name('po.search');
         Route::get('/products/search', [PembelianController::class, 'searchProducts'])->name('products.search');
 
-        // ✅ Alias lama
         Route::get('/search-po', [PembelianController::class, 'searchPO'])->name('search-po');
         Route::get('/search-products', [PembelianController::class, 'searchProducts'])->name('search-products');
 
-        // ✅ Main routes
         Route::get('/', [PembelianController::class, 'create'])->name('index');
         Route::get('/create', [PembelianController::class, 'create'])->name('create');
         Route::post('/', [PembelianController::class, 'store'])->name('store');
 
-        // ✅ PO detail route (harus TERAKHIR)
         Route::get('/po/{poNo}', [PembelianController::class, 'getPO'])->name('po.get');
         Route::get('/get-po/{poNo}', [PembelianController::class, 'getPO'])->name('get-po');
 
-        // ✅ TAMBAHKAN INI untuk recalculate data lama
         Route::post('/{id}/recalculate', [PembelianController::class, 'recalculate'])
             ->whereNumber('id')
             ->name('recalculate');
@@ -273,11 +256,9 @@ Route::middleware(['auth', 'role:admin|owner'])->group(function () {
 
     /* ================= STOCK OBAT (INVENTORY) ================= */
     Route::prefix('stockobat')->name('stockobat.')->group(function () {
-        // ✅ Export routes (harus PERTAMA)
         Route::get('/export-pdf', [StockObatController::class, 'exportPdf'])->name('exportPdf');
         Route::get('/export-excel', [StockObatController::class, 'exportExcel'])->name('exportExcel');
 
-        // ✅ CRUD routes
         Route::get('/', [StockObatController::class, 'index'])->name('index');
         Route::get('/create', [StockObatController::class, 'create'])->name('create');
         Route::post('/', [StockObatController::class, 'store'])->name('store');
@@ -290,15 +271,13 @@ Route::middleware(['auth', 'role:admin|owner'])->group(function () {
     /* ================= REPORTS / LAPORAN ================= */
     Route::prefix('reports')->name('reports.')->group(function () {
 
-        // ✅ Laporan Penjualan (Sales)
+        // Laporan Penjualan (Sales)
         Route::prefix('sales')->name('sales.')->group(function () {
-            // Export routes (harus PERTAMA)
             Route::get('/export-csv', [SalesReportController::class, 'exportSalesCsv'])->name('export');
             Route::get('/export-pdf', [SalesReportController::class, 'exportSalesPdf'])->name('export.pdf');
             Route::get('/items-export-csv', [SalesReportController::class, 'exportItemsCsv'])->name('items_export');
             Route::get('/items-export-pdf', [SalesReportController::class, 'exportItemsPdf'])->name('items_export.pdf');
 
-            // Main routes
             Route::get('/', [SalesReportController::class, 'index'])->name('index');
             Route::get('/items', [SalesReportController::class, 'items'])->name('items');
             Route::get('/{sale}', [SalesReportController::class, 'show'])
@@ -306,40 +285,34 @@ Route::middleware(['auth', 'role:admin|owner'])->group(function () {
                 ->name('show');
         });
 
-        // ✅ Laporan Purchase Orders
+        // Laporan Purchase Orders
         Route::prefix('purchases')->name('purchases.')->group(function () {
-            // Export & API routes (harus PERTAMA)
             Route::get('/export/pdf', [PurchaseReportController::class, 'exportPdf'])->name('export.pdf');
             Route::get('/export/excel', [PurchaseReportController::class, 'exportExcel'])->name('export.excel');
             Route::get('/api/statistics', [PurchaseReportController::class, 'statistics'])->name('statistics');
             Route::get('/items/report', [PurchaseReportController::class, 'itemsReport'])->name('items');
 
-            // Main routes
             Route::get('/', [PurchaseReportController::class, 'index'])->name('index');
             Route::get('/{purchase}', [PurchaseReportController::class, 'show'])
                 ->whereNumber('purchase')
                 ->name('show');
         });
 
-        // ✅ Laporan Pembelian
+        // Laporan Pembelian
         Route::prefix('pembelian')->name('pembelian.')->group(function () {
-            // Export & API routes (harus PERTAMA)
             Route::get('/export/pdf', [PembelianReportController::class, 'exportPdf'])->name('export.pdf');
             Route::get('/export/excel', [PembelianReportController::class, 'exportExcel'])->name('export.excel');
             Route::get('/api/statistics', [PembelianReportController::class, 'statistics'])->name('statistics');
             Route::get('/items/report', [PembelianReportController::class, 'itemsReport'])->name('items');
             Route::get('/hutang/report', [PembelianReportController::class, 'hutangReport'])->name('hutang');
 
-
-
-            // Main routes
             Route::get('/', [PembelianReportController::class, 'index'])->name('index');
             Route::get('/{pembelian}', [PembelianReportController::class, 'show'])
                 ->whereNumber('pembelian')
                 ->name('show');
         });
 
-        // ✅ Laporan Expired
+        // Laporan Expired
         Route::prefix('expired')->name('expired.')->group(function () {
             Route::get('/export', [LaporanExpiredController::class, 'export'])->name('export');
             Route::get('/', [LaporanExpiredController::class, 'index'])->name('index');
@@ -361,6 +334,5 @@ Route::middleware(['auth', 'role:admin|owner'])->group(function () {
 |--------------------------------------------------------------------------
 | AUTH ROUTES
 |--------------------------------------------------------------------------
-| Register, Login, Password Reset, Email Verification, dll.
 */
 require __DIR__ . '/auth.php';

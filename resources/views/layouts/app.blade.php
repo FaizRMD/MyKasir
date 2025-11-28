@@ -362,21 +362,18 @@
 
 <body>
     @php
-        // KUNCI UTAMA: Fresh pull dari database TANPA cache
-        // Ini memastikan data user SELALU terbaru dari database
+        // User & avatar
         $currentUserId = Auth::id();
         $me = $currentUserId ? \App\Models\User::find($currentUserId) : null;
 
-        // Jika baru switch account, force update Auth instance
         if (session('_switched_at') && $me) {
             Auth::setUser($me);
         }
 
-        // Cache busting untuk avatar dengan timestamp unik
         $cacheKey = session('_switched_at', $me?->updated_at?->timestamp ?? time());
         $avatarUrl = $me ? route('profile.avatar', $me->id) . '?v=' . $cacheKey : null;
 
-        // Notifikasi
+        // Notifikasi: hutang, stok menipis, expired
         $unpaidPurchases = collect();
         try {
             $unpaidPurchases = \App\Models\Pembelian::with('supplier')
@@ -393,7 +390,7 @@
         try {
             $lowStockProducts = \App\Models\Product::whereColumn('stock', '<=', 'min_stock')
                 ->orderBy('stock', 'asc')
-                ->limit(3)
+                ->limit(5)
                 ->get();
         } catch (\Exception $e) {
         }
@@ -444,6 +441,7 @@
                             <span class="badge-dot">{{ $notifCount }}</span>
                         @endif
                     </button>
+
                     <div class="dropdown-menu dropdown-menu-end p-0" style="min-width:420px; max-height: 600px;">
                         <div class="p-3 border-bottom d-flex align-items-center justify-content-between">
                             <div class="fw-semibold">
@@ -457,6 +455,7 @@
                                 <i class="bi bi-arrow-clockwise"></i>
                             </button>
                         </div>
+
                         <div class="p-2" style="max-height: 450px; overflow-y: auto;">
                             @if ($notifCount == 0)
                                 <div class="notif-empty">
@@ -464,6 +463,129 @@
                                     <div class="mt-2 fw-semibold">Semua Baik-Baik Saja</div>
                                     <small class="text-muted">Tidak ada notifikasi penting</small>
                                 </div>
+                            @else
+                                {{-- HUTANG / JATUH TEMPO --}}
+                                @if ($unpaidPurchases->count())
+                                    <div class="px-1 pb-1">
+                                        <small class="text-uppercase text-muted fw-semibold d-block mb-1">
+                                            Hutang / Jatuh Tempo
+                                        </small>
+                                        @foreach ($unpaidPurchases as $p)
+                                            @php
+                                                $jt = $p->jatuh_tempo ? \Carbon\Carbon::parse($p->jatuh_tempo) : null;
+                                            @endphp
+                                            <div class="notif-item py-2 px-2 rounded-3 mb-1"
+                                                style="background:#fff7f7;">
+                                                <span class="dot" style="background:#ef4444;"></span>
+                                                <div>
+                                                    <div class="fw-semibold">
+                                                        {{ $p->supplier?->nama ?? ($p->supplier?->name ?? 'Supplier') }}
+                                                    </div>
+                                                    <div class="small text-muted">
+                                                        Jatuh tempo:
+                                                        <strong>
+                                                            {{ $jt ? $jt->format('d M Y') : '-' }}
+                                                        </strong>
+                                                    </div>
+                                                    @if (!empty($p->no_faktur ?? ($p->kode ?? null)))
+                                                        <div class="small text-muted">
+                                                            Faktur:
+                                                            {{ $p->no_faktur ?? $p->kode }}
+                                                        </div>
+                                                    @endif
+                                                </div>
+                                            </div>
+                                        @endforeach
+                                        <div class="text-end mt-1">
+                                            <a href="{{ route('reports.pembelian.hutang') }}"
+                                                class="small text-decoration-none">
+                                                Lihat detail hutang <i class="bi bi-chevron-right small"></i>
+                                            </a>
+                                        </div>
+                                    </div>
+                                    <hr class="my-2">
+                                @endif
+
+                                {{-- STOK MENIPIS --}}
+                                @if ($lowStockProducts->count())
+                                    <div class="px-1 pb-1">
+                                        <small class="text-uppercase text-muted fw-semibold d-block mb-1">
+                                            Stok Menipis
+                                        </small>
+                                        @foreach ($lowStockProducts as $prod)
+                                            <div class="notif-item py-2 px-2 rounded-3 mb-1"
+                                                style="background:#fffdf5;">
+                                                <span class="dot" style="background:#f97316;"></span>
+                                                <div>
+                                                    <div class="fw-semibold">
+                                                        {{ $prod->name ?? 'Produk' }}
+                                                    </div>
+                                                    <div class="small text-muted">
+                                                        Stok:
+                                                        <strong>{{ $prod->stock ?? 0 }}</strong>
+                                                        @if (!is_null($prod->min_stock))
+                                                            &nbsp;• Min:
+                                                            <strong>{{ $prod->min_stock }}</strong>
+                                                        @endif
+                                                    </div>
+                                                </div>
+                                            </div>
+                                        @endforeach
+                                        <div class="text-end mt-1">
+                                            <a href="{{ route('stockobat.index') }}"
+                                                class="small text-decoration-none">
+                                                Lihat stok <i class="bi bi-chevron-right small"></i>
+                                            </a>
+                                        </div>
+                                    </div>
+                                    <hr class="my-2">
+                                @endif
+
+                                {{-- OBAT MENDekati EXPIRED --}}
+                                @if ($expiringProducts->count())
+                                    <div class="px-1 pb-1">
+                                        <small class="text-uppercase text-muted fw-semibold d-block mb-1">
+                                            Obat Mendekati Expired
+                                        </small>
+                                        @foreach ($expiringProducts as $row)
+                                            @php
+                                                $expDate = $row->exp_date
+                                                    ? \Carbon\Carbon::parse($row->exp_date)
+                                                    : null;
+                                                $sisaHari = $row->sisa_hari ?? null;
+                                            @endphp
+                                            <div class="notif-item py-2 px-2 rounded-3 mb-1"
+                                                style="background:#f5f9ff;">
+                                                <span class="dot" style="background:#0ea5e9;"></span>
+                                                <div>
+                                                    <div class="fw-semibold">
+                                                        {{ $row->product_name ?? 'Produk' }}
+                                                    </div>
+                                                    <div class="small text-muted">
+                                                        Exp:
+                                                        <strong>
+                                                            {{ $expDate ? $expDate->format('d M Y') : '-' }}
+                                                        </strong>
+                                                        @if (!empty($row->batch_no))
+                                                            • Batch: {{ $row->batch_no }}
+                                                        @endif
+                                                    </div>
+                                                    @if (!is_null($sisaHari))
+                                                        <div class="small text-muted">
+                                                            Sisa {{ $sisaHari }} hari
+                                                        </div>
+                                                    @endif
+                                                </div>
+                                            </div>
+                                        @endforeach
+                                        <div class="text-end mt-1">
+                                            <a href="{{ route('reports.expired.index') }}"
+                                                class="small text-decoration-none">
+                                                Lihat laporan expired <i class="bi bi-chevron-right small"></i>
+                                            </a>
+                                        </div>
+                                    </div>
+                                @endif
                             @endif
                         </div>
                     </div>
@@ -475,13 +597,17 @@
                         <i data-feather="settings"></i>
                     </button>
                     <ul class="dropdown-menu dropdown-menu-end">
-                        <li><a class="dropdown-item" href="{{ route('profile.edit') }}">
+                        <li>
+                            <a class="dropdown-item" href="{{ route('profile.edit') }}">
                                 <i class="bi bi-person me-2"></i>Profil
-                            </a></li>
-                        <li><a class="dropdown-item" href="#" data-bs-toggle="modal"
+                            </a>
+                        </li>
+                        <li>
+                            <a class="dropdown-item" href="#" data-bs-toggle="modal"
                                 data-bs-target="#switchAccountModal">
                                 <i class="bi bi-arrow-left-right me-2"></i>Beralih Akun
-                            </a></li>
+                            </a>
+                        </li>
                         <li>
                             <hr class="dropdown-divider">
                         </li>
@@ -510,9 +636,11 @@
                         <li>
                             <hr class="dropdown-divider">
                         </li>
-                        <li><a class="dropdown-item" href="{{ route('profile.edit') }}">
+                        <li>
+                            <a class="dropdown-item" href="{{ route('profile.edit') }}">
                                 <i class="bi bi-gear me-2"></i>Pengaturan Profil
-                            </a></li>
+                            </a>
+                        </li>
                         <li>
                             <form method="POST" action="{{ route('logout') }}">
                                 @csrf
@@ -616,8 +744,6 @@
                         id="kasirSub">
                         <a href="{{ url('/sale-items') }}"
                             class="{{ request()->is('sale-items') ? 'active' : '' }}">Transaksi</a>
-                        <a href="{{ url('/pos/draft') }}"
-                            class="{{ request()->is('pos/draft') ? 'active' : '' }}">Draft / Hold</a>
                     </div>
                 </nav>
 

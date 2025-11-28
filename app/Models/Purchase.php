@@ -12,32 +12,31 @@ class Purchase extends Model
     // =========================
     // Status PO
     // =========================
-    public const STATUS_DRAFT            = 'DRAFT';
-    public const STATUS_ORDERED          = 'ORDERED';
+    public const STATUS_DRAFT = 'DRAFT';
+    public const STATUS_ORDERED = 'ORDERED';
     public const STATUS_PARTIAL_RECEIVED = 'PARTIAL_RECEIVED';
-    public const STATUS_RECEIVED         = 'RECEIVED';
+    public const STATUS_RECEIVED = 'RECEIVED';
 
     protected $table = 'purchases';
 
-    // Kolom yang bisa diisi mass-assignment
     protected $fillable = [
         'po_no',
         'po_date',
         'supplier_id',
         'apoteker_id',
-        'type',       // NON KONSINYASI | KONSINYASI
-        'category',   // Reguler | Prekursor | ...
-        'print_type', // INV_A5 | INV_A4 | STRUK_58 | ...
+        'warehouse_id',   // <- kalau kamu pakai kolom ini
+        'type',           // NON KONSINYASI | KONSINYASI
+        'category',       // Reguler | Prekursor | ...
+        'print_type',     // INV_A5 | INV_A4 | STRUK_58 | ...
         'note',
         'status',
         'total',
         'user_id',
     ];
 
-    // Casting atribut
     protected $casts = [
         'po_date' => 'date',
-        'total'   => 'decimal:2',
+        'total' => 'decimal:2',
     ];
 
     // =========================
@@ -51,7 +50,7 @@ class Purchase extends Model
                 $model->status = strtoupper($model->status);
             }
 
-            // Jika kolom 'tanggal' tidak ada di DB, hapus sebelum insert/update
+            // Kalau di DB lama masih ada kolom 'tanggal', jaga kompatibilitas
             if (!Schema::hasColumn($model->getTable(), 'tanggal')) {
                 unset($model->tanggal);
             }
@@ -61,6 +60,7 @@ class Purchase extends Model
     // =========================
     // Relationships
     // =========================
+
     public function supplier(): BelongsTo
     {
         return $this->belongsTo(Supplier::class);
@@ -68,14 +68,17 @@ class Purchase extends Model
 
     public function apoteker(): BelongsTo
     {
-        // jika apoteker disimpan di tabel 'apotekers'
         return $this->belongsTo(Apoteker::class, 'apoteker_id');
     }
 
     public function user(): BelongsTo
     {
-        // pembuat PO
         return $this->belongsTo(User::class, 'user_id');
+    }
+
+    public function warehouse(): BelongsTo
+    {
+        return $this->belongsTo(Warehouse::class, 'warehouse_id');
     }
 
     public function items(): HasMany
@@ -86,16 +89,8 @@ class Purchase extends Model
     // =========================
     // Scopes
     // =========================
-    public function scopeDraft($q)
-    {
-        return $q->where('status', self::STATUS_DRAFT);
-    }
 
-    public function scopeOrdered($q)
-    {
-        return $q->where('status', self::STATUS_ORDERED);
-    }
-
+    /** PO yang masih “open”: belum full diterima */
     public function scopeOpen($q)
     {
         return $q->whereIn('status', [
@@ -105,30 +100,36 @@ class Purchase extends Model
         ]);
     }
 
+    /** PO yang sudah selesai diterima */
     public function scopeClosed($q)
     {
         return $q->where('status', self::STATUS_RECEIVED);
     }
 
+    /** Helper untuk filter yang masih punya outstanding qty */
+    public function scopeHasOutstandingItems($q)
+    {
+        return $q->whereHas('items', function ($sub) {
+            $sub->outstanding();  // scope di PurchaseItem
+        });
+    }
+
     // =========================
-    // Accessors / Mutators / Helpers
+    // Accessors / Helpers
     // =========================
 
-    /**
-     * Ambil po_date (fallback ke 'tanggal' bila kolom lama masih ada)
-     */
+    /** Ambil po_date (fallback ke kolom lama 'tanggal' bila ada) */
     public function getPoDateAttribute($value)
     {
-        if ($value) return $this->asDateTime($value);
+        if ($value) {
+            return $this->asDateTime($value);
+        }
 
-        // fallback jika DB lama masih punya kolom 'tanggal'
         $tanggal = $this->attributes['tanggal'] ?? null;
         return $tanggal ? $this->asDateTime($tanggal) : null;
     }
 
-    /**
-     * Saat set po_date, juga isi tanggal (jika kolom itu ada di DB)
-     */
+    /** Set po_date + sinkron ke 'tanggal' jika kolom itu ada */
     public function setPoDateAttribute($value): void
     {
         $this->attributes['po_date'] = $value;
@@ -138,40 +139,38 @@ class Purchase extends Model
         }
     }
 
-    /** Total terformat untuk tampilan */
+    /** Total terformat */
     public function getFormattedTotalAttribute(): string
     {
         return number_format((float) $this->total, 2, ',', '.');
     }
 
-    /** Boleh diedit hanya saat DRAFT */
+    /** Hanya bisa diedit kalau status masih DRAFT */
     public function getIsEditableAttribute(): bool
     {
         return $this->status === self::STATUS_DRAFT;
     }
 
-    /** Hitung total qty outstanding (belum diterima) */
+    /** Total qty yang belum diterima untuk PO ini */
     public function getOutstandingQtyAttribute(): int
     {
         $items = $this->relationLoaded('items') ? $this->items : $this->items()->get();
 
         return (int) $items->sum(function ($i) {
-            $qty  = (int) ($i->qty ?? 0);
+            $qty = (int) ($i->qty ?? 0);
             $recv = (int) ($i->qty_received ?? 0);
             return max(0, $qty - $recv);
         });
     }
 
-    /**
-     * Hitung ulang total dari items
-     */
+    /** Hitung ulang total dari items */
     public function recalcTotals(): void
     {
         $query = $this->items();
 
         $connection = $this->getConnection();
-        $schema     = $connection->getSchemaBuilder();
-        $table      = $query->getModel()->getTable();
+        $schema = $connection->getSchemaBuilder();
+        $table = $query->getModel()->getTable();
 
         $sum = 0;
         if (method_exists($schema, 'hasColumn') && $schema->hasColumn($table, 'subtotal')) {
@@ -185,6 +184,7 @@ class Purchase extends Model
         $this->updateQuietly(['total' => $sum]);
     }
 
+    /** Scope cepat untuk status PARTIAL / RECEIVED */
     public function scopeReceivedOrPartial($q)
     {
         return $q->whereIn('status', [

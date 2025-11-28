@@ -7,6 +7,12 @@
             padding: 2rem;
         }
 
+        /* Batasi ukuran semua SVG di halaman ini (supaya tidak jadi raksasa) */
+        .report-container svg {
+            max-width: 24px;
+            max-height: 24px;
+        }
+
         .page-header {
             background: linear-gradient(135deg, #800020 0%, #a0002a 100%);
             border-radius: 20px;
@@ -65,7 +71,8 @@
             font-size: 0.875rem;
         }
 
-        .form-input, .form-select {
+        .form-input,
+        .form-select {
             padding: 0.75rem 1rem;
             border: 2px solid #e9ecef;
             border-radius: 10px;
@@ -74,7 +81,8 @@
             background: white;
         }
 
-        .form-input:focus, .form-select:focus {
+        .form-input:focus,
+        .form-select:focus {
             outline: none;
             border-color: #800020;
             box-shadow: 0 0 0 3px rgba(128, 0, 32, 0.1);
@@ -151,10 +159,21 @@
             transform: translateY(-4px);
         }
 
-        .stat-card.draft { border-left-color: #ffc107; }
-        .stat-card.ordered { border-left-color: #007bff; }
-        .stat-card.received { border-left-color: #28a745; }
-        .stat-card.total { border-left-color: #800020; }
+        .stat-card.draft {
+            border-left-color: #ffc107;
+        }
+
+        .stat-card.ordered {
+            border-left-color: #007bff;
+        }
+
+        .stat-card.received {
+            border-left-color: #28a745;
+        }
+
+        .stat-card.total {
+            border-left-color: #800020;
+        }
 
         .stat-label {
             color: #6c757d;
@@ -269,25 +288,37 @@
             background: #fff3cd;
             color: #856404;
         }
-        .status-draft .status-indicator { background: #ffc107; }
+
+        .status-draft .status-indicator {
+            background: #ffc107;
+        }
 
         .status-ordered {
             background: #cfe2ff;
             color: #084298;
         }
-        .status-ordered .status-indicator { background: #0d6efd; }
+
+        .status-ordered .status-indicator {
+            background: #0d6efd;
+        }
 
         .status-partial {
             background: #d1ecf1;
             color: #0c5460;
         }
-        .status-partial .status-indicator { background: #17a2b8; }
+
+        .status-partial .status-indicator {
+            background: #17a2b8;
+        }
 
         .status-received {
             background: #d4edda;
             color: #155724;
         }
-        .status-received .status-indicator { background: #28a745; }
+
+        .status-received .status-indicator {
+            background: #28a745;
+        }
 
         .category-badge {
             display: inline-block;
@@ -328,13 +359,19 @@
             background: #e7f5ff;
             color: #0c5aa6;
         }
-        .btn-view:hover { background: #d0ebff; }
+
+        .btn-view:hover {
+            background: #d0ebff;
+        }
 
         .btn-print {
             background: #f3e5f5;
             color: #6a1b9a;
         }
-        .btn-print:hover { background: #e1bee7; }
+
+        .btn-print:hover {
+            background: #e1bee7;
+        }
 
         .empty-state {
             text-align: center;
@@ -352,7 +389,55 @@
         .pagination-wrapper {
             padding: 1.5rem 2rem;
             border-top: 2px solid #f1f3f5;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            flex-wrap: wrap;
+            gap: 1rem;
         }
+
+        /* ========== PAGINATION CUSTOM TANPA ICON ========== */
+        .pagination-info {
+            color: #6c757d;
+            font-size: 0.9rem;
+        }
+
+        .pagination-nav {
+            display: flex;
+            gap: 0.5rem;
+            flex-wrap: wrap;
+            align-items: center;
+        }
+
+        .page-btn {
+            padding: 0.35rem 0.75rem;
+            border-radius: 6px;
+            border: 1px solid #dee2e6;
+            background: #ffffff;
+            font-size: 0.85rem;
+            color: #495057;
+            text-decoration: none;
+            min-width: 34px;
+            text-align: center;
+        }
+
+        .page-btn:hover {
+            background: #f1f3f5;
+            color: #212529;
+        }
+
+        .page-btn.disabled {
+            opacity: 0.6;
+            pointer-events: none;
+        }
+
+        .page-btn.active {
+            background: #800020;
+            border-color: #800020;
+            color: #ffffff;
+        }
+
+        /* ================================================== */
 
         @media (max-width: 768px) {
             .report-container {
@@ -395,7 +480,8 @@
         <div class="filter-card">
             <div class="filter-title">
                 <svg width="20" height="20" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 4a1 1 0 011-1h16a1 1 0 011 1v2.586a1 1 0 01-.293.707l-6.414 6.414a1 1 0 00-.293.707V17l-4 4v-6.586a1 1 0 00-.293-.707L3.293 7.293A1 1 0 013 6.586V4z"/>
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                        d="M3 4a1 1 0 011-1h16a1 1 0 011 1v2.586a1 1 0 01-.293.707l-6.414 6.414a1 1 0 00-.293.707V17l-4 4v-6.586a1 1 0 00-.293-.707L3.293 7.293A1 1 0 013 6.586V4z" />
                 </svg>
                 Filter & Pencarian
             </div>
@@ -404,13 +490,8 @@
                 <div class="filter-grid">
                     <div class="form-group">
                         <label class="form-label">Pencarian</label>
-                        <input
-                            type="text"
-                            name="q"
-                            class="form-input"
-                            placeholder="No. PO, Supplier, Catatan..."
-                            value="{{ request('q') }}"
-                        >
+                        <input type="text" name="q" class="form-input" placeholder="No. PO, Supplier, Catatan..."
+                            value="{{ request('q') }}">
                     </div>
 
                     <div class="form-group">
@@ -419,48 +500,42 @@
                             <option value="">Semua Status</option>
                             <option value="DRAFT" {{ request('status') === 'DRAFT' ? 'selected' : '' }}>Draft</option>
                             <option value="ORDERED" {{ request('status') === 'ORDERED' ? 'selected' : '' }}>Ordered</option>
-                            <option value="PARTIAL_RECEIVED" {{ request('status') === 'PARTIAL_RECEIVED' ? 'selected' : '' }}>Sebagian Diterima</option>
-                            <option value="RECEIVED" {{ request('status') === 'RECEIVED' ? 'selected' : '' }}>Diterima</option>
+                            <option value="PARTIAL_RECEIVED"
+                                {{ request('status') === 'PARTIAL_RECEIVED' ? 'selected' : '' }}>Sebagian Diterima</option>
+                            <option value="RECEIVED" {{ request('status') === 'RECEIVED' ? 'selected' : '' }}>Diterima
+                            </option>
                         </select>
                     </div>
 
                     <div class="form-group">
                         <label class="form-label">Dari Tanggal</label>
-                        <input
-                            type="date"
-                            name="from"
-                            class="form-input"
-                            value="{{ request('from') }}"
-                        >
+                        <input type="date" name="from" class="form-input" value="{{ request('from') }}">
                     </div>
 
                     <div class="form-group">
                         <label class="form-label">Sampai Tanggal</label>
-                        <input
-                            type="date"
-                            name="to"
-                            class="form-input"
-                            value="{{ request('to') }}"
-                        >
+                        <input type="date" name="to" class="form-input" value="{{ request('to') }}">
                     </div>
                 </div>
 
                 <div class="button-group">
                     <button type="submit" class="btn btn-primary">
                         <svg width="20" height="20" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"/>
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                                d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
                         </svg>
                         Cari
                     </button>
                     <a href="{{ route('purchases.index') }}" class="btn btn-secondary">
                         <svg width="20" height="20" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"/>
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                                d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
                         </svg>
                         Reset
                     </a>
                     <a href="{{ route('purchases.create') }}" class="btn btn-export">
                         <svg width="20" height="20" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"/>
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4" />
                         </svg>
                         Buat PO Baru
                     </a>
@@ -475,14 +550,18 @@
                 'draft' => 0,
                 'ordered' => 0,
                 'received' => 0,
-                'totalAmount' => 0
+                'totalAmount' => 0,
             ];
 
-            foreach($purchases as $po) {
+            foreach ($purchases as $po) {
                 $stats['totalAmount'] += $po->total;
-                if($po->status === 'DRAFT') $stats['draft']++;
-                elseif($po->status === 'ORDERED') $stats['ordered']++;
-                elseif($po->status === 'RECEIVED') $stats['received']++;
+                if ($po->status === 'DRAFT') {
+                    $stats['draft']++;
+                } elseif ($po->status === 'ORDERED') {
+                    $stats['ordered']++;
+                } elseif ($po->status === 'RECEIVED') {
+                    $stats['received']++;
+                }
             }
         @endphp
 
@@ -547,7 +626,7 @@
                                 </td>
                                 <td>
                                     <div class="supplier-name">{{ $purchase->supplier->name ?? '-' }}</div>
-                                    @if($purchase->apoteker)
+                                    @if ($purchase->apoteker)
                                         <div style="font-size: 0.75rem; color: #6c757d; margin-top: 0.25rem;">
                                             👨‍⚕️ {{ $purchase->apoteker->name }}
                                         </div>
@@ -558,19 +637,19 @@
                                 </td>
                                 <td>
                                     @php
-                                        $statusClass = match($purchase->status) {
+                                        $statusClass = match ($purchase->status) {
                                             'DRAFT' => 'status-draft',
                                             'ORDERED' => 'status-ordered',
                                             'PARTIAL_RECEIVED' => 'status-partial',
                                             'RECEIVED' => 'status-received',
-                                            default => 'status-draft'
+                                            default => 'status-draft',
                                         };
-                                        $statusLabel = match($purchase->status) {
+                                        $statusLabel = match ($purchase->status) {
                                             'DRAFT' => 'Draft',
                                             'ORDERED' => 'Ordered',
                                             'PARTIAL_RECEIVED' => 'Sebagian',
                                             'RECEIVED' => 'Diterima',
-                                            default => $purchase->status
+                                            default => $purchase->status,
                                         };
                                     @endphp
                                     <span class="status-badge {{ $statusClass }}">
@@ -587,15 +666,21 @@
                                 <td>
                                     <div class="action-buttons">
                                         <a href="{{ route('purchases.show', $purchase) }}" class="btn-action btn-view">
-                                            <svg width="16" height="16" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"/>
-                                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z"/>
+                                            <svg width="16" height="16" fill="none" stroke="currentColor"
+                                                viewBox="0 0 24 24">
+                                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                                                    d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+                                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                                                    d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
                                             </svg>
                                             Detail
                                         </a>
-                                        <a href="{{ route('purchases.print.blanko', $purchase) }}" class="btn-action btn-print" target="_blank">
-                                            <svg width="16" height="16" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 17h2a2 2 0 002-2v-4a2 2 0 00-2-2H5a2 2 0 00-2 2v4a2 2 0 002 2h2m2 4h6a2 2 0 002-2v-4a2 2 0 00-2-2H9a2 2 0 00-2 2v4a2 2 0 002 2zm8-12V5a2 2 0 00-2-2H9a2 2 0 00-2 2v4h10z"/>
+                                        <a href="{{ route('purchases.print.blanko', $purchase) }}"
+                                            class="btn-action btn-print" target="_blank">
+                                            <svg width="16" height="16" fill="none" stroke="currentColor"
+                                                viewBox="0 0 24 24">
+                                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                                                    d="M17 17h2a2 2 0 002-2v-4a2 2 0 00-2-2H5a2 2 0 00-2 2v4a2 2 0 002 2h2m2 4h6a2 2 0 002-2v-4a2 2 0 00-2-2H9a2 2 0 00-2 2v4a2 2 0 002 2zm8-12V5a2 2 0 00-2-2H9a2 2 0 00-2 2v4h10z" />
                                             </svg>
                                             Print
                                         </a>
@@ -605,8 +690,10 @@
                         @empty
                             <tr>
                                 <td colspan="8" class="empty-state">
-                                    <svg class="empty-icon" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/>
+                                    <svg class="empty-icon" xmlns="http://www.w3.org/2000/svg" fill="none"
+                                        viewBox="0 0 24 24" stroke="currentColor">
+                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                                            d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
                                     </svg>
                                     <div style="font-size: 1.1rem; margin-bottom: 0.5rem;">Belum ada Purchase Order</div>
                                     <div>Buat PO baru untuk memulai pemesanan</div>
@@ -617,9 +704,37 @@
                 </table>
             </div>
 
-            @if($purchases->hasPages())
+            @if ($purchases->hasPages())
+                @php
+                    $paginator = $purchases->appends(request()->query());
+                @endphp
                 <div class="pagination-wrapper">
-                    {{ $purchases->links() }}
+                    <div class="pagination-info">
+                        Menampilkan {{ $purchases->firstItem() }} - {{ $purchases->lastItem() }}
+                        dari {{ $purchases->total() }} data
+                    </div>
+
+                    <div class="pagination-nav">
+                        {{-- Previous --}}
+                        <a href="{{ $purchases->onFirstPage() ? '#' : $paginator->previousPageUrl() }}"
+                            class="page-btn {{ $purchases->onFirstPage() ? 'disabled' : '' }}">
+                            Previous
+                        </a>
+
+                        {{-- Nomor halaman --}}
+                        @for ($page = 1; $page <= $purchases->lastPage(); $page++)
+                            <a href="{{ $paginator->url($page) }}"
+                                class="page-btn {{ $page == $purchases->currentPage() ? 'active' : '' }}">
+                                {{ $page }}
+                            </a>
+                        @endfor
+
+                        {{-- Next --}}
+                        <a href="{{ $purchases->hasMorePages() ? $paginator->nextPageUrl() : '#' }}"
+                            class="page-btn {{ $purchases->hasMorePages() ? '' : 'disabled' }}">
+                            Next
+                        </a>
+                    </div>
                 </div>
             @endif
         </div>

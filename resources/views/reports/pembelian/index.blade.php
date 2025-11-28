@@ -8,6 +8,12 @@
             padding: 2rem;
         }
 
+        /* SVG DI HALAMAN INI DIKUNCI SUPAYA TIDAK JADI RAKSASA */
+        .reports-container svg {
+            max-width: 24px;
+            max-height: 24px;
+        }
+
         .page-header {
             margin-bottom: 2rem;
         }
@@ -266,6 +272,44 @@
             font-size: 0.9rem;
         }
 
+        /* ===== CUSTOM PAGINATION TANPA ICON ===== */
+        .pagination-nav {
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+            flex-wrap: wrap;
+        }
+
+        .page-btn {
+            padding: 0.35rem 0.75rem;
+            border-radius: 6px;
+            border: 1px solid #dee2e6;
+            background: #ffffff;
+            font-size: 0.85rem;
+            color: #495057;
+            text-decoration: none;
+            min-width: 34px;
+            text-align: center;
+        }
+
+        .page-btn:hover {
+            background: #f1f3f5;
+            color: #212529;
+        }
+
+        .page-btn.disabled {
+            opacity: 0.6;
+            pointer-events: none;
+        }
+
+        .page-btn.active {
+            background: #800020;
+            border-color: #800020;
+            color: #ffffff;
+        }
+
+        /* ======================================== */
+
         .empty-state {
             text-align: center;
             padding: 4rem 2rem;
@@ -370,7 +414,7 @@
             <div class="alert alert-danger">
                 <svg width="24" height="24" fill="currentColor" viewBox="0 0 20 20">
                     <path fill-rule="evenodd"
-                        d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.707 7.293a1 1 0 00-1.414 1.414L8.586 10l-1.293 1.293a1 1 0 101.414 1.414L10 11.414l1.293 1.293a1 1 0 001.414-1.414L11.414 10l1.293-1.293a1 1 0 00-1.414-1.414L10 8.586 8.707 7.293z"
+                        d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.707 7.293a1 1 0 00-1.414 1.414L8.586 10l-1.293 1.293a1 1 0 101.414 1.414L10 11.586l1.293 1.293a1 1 0 001.414-1.414L11.414 10l1.293-1.293a1 1 0 00-1.414-1.414L10 8.586 8.707 7.293z"
                         clip-rule="evenodd" />
                 </svg>
                 {{ session('error') }}
@@ -569,12 +613,36 @@
             </div>
 
             @if ($pembelians->hasPages())
+                @php
+                    $paginator = $pembelians->appends(request()->query());
+                @endphp
                 <div class="pagination-wrapper">
                     <div class="pagination-info">
-                        Menampilkan {{ $pembelians->firstItem() }} - {{ $pembelians->lastItem() }} dari
-                        {{ $pembelians->total() }} data
+                        Menampilkan {{ $pembelians->firstItem() }} - {{ $pembelians->lastItem() }}
+                        dari {{ $pembelians->total() }} data
                     </div>
-                    <div>{{ $pembelians->links() }}</div>
+
+                    <div class="pagination-nav">
+                        {{-- Previous --}}
+                        <a href="{{ $pembelians->onFirstPage() ? '#' : $paginator->previousPageUrl() }}"
+                            class="page-btn {{ $pembelians->onFirstPage() ? 'disabled' : '' }}">
+                            Previous
+                        </a>
+
+                        {{-- Numbered pages --}}
+                        @for ($page = 1; $page <= $pembelians->lastPage(); $page++)
+                            <a href="{{ $paginator->url($page) }}"
+                                class="page-btn {{ $page == $pembelians->currentPage() ? 'active' : '' }}">
+                                {{ $page }}
+                            </a>
+                        @endfor
+
+                        {{-- Next --}}
+                        <a href="{{ $pembelians->hasMorePages() ? $paginator->nextPageUrl() : '#' }}"
+                            class="page-btn {{ $pembelians->hasMorePages() ? '' : 'disabled' }}">
+                            Next
+                        </a>
+                    </div>
                 </div>
             @endif
         </div>

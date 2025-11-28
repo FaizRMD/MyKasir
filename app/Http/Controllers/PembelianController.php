@@ -5,6 +5,8 @@ namespace App\Http\Controllers;
 use App\Http\Requests\StorePembelianRequest;
 use App\Models\Pembelian;
 use App\Models\PembelianItem;
+use App\Models\Purchase;
+use App\Models\PurchaseItem;
 use App\Models\Supplier;
 use App\Models\Warehouse;
 use Illuminate\Http\Request;
@@ -13,6 +15,9 @@ use Illuminate\Support\Facades\Log;
 
 class PembelianController extends Controller
 {
+    /**
+     * List pembelian.
+     */
     public function index()
     {
         $pembelians = Pembelian::with(['supplier', 'warehouse'])
@@ -21,6 +26,7 @@ class PembelianController extends Controller
             ->orderByDesc('id')
             ->paginate(15);
 
+        // Auto-recalc pembelian lama yang net_total-nya 0 tapi punya item
         $pembelians->getCollection()->transform(function (Pembelian $pembelian) {
             if ((float) $pembelian->net_total === 0.0 && $pembelian->items_count > 0) {
                 $pembelian->loadMissing('items');
@@ -32,9 +38,15 @@ class PembelianController extends Controller
         return view('pembelian.index', compact('pembelians'));
     }
 
+    /**
+     * Form buat pembelian baru.
+     */
     public function create()
     {
-        $suppliers = Supplier::select('id', 'name')->orderBy('name')->get();
+        $suppliers = Supplier::select('id', 'name')
+            ->orderBy('name')
+            ->get();
+
         $warehouses = Warehouse::select('id', 'name')
             ->when(
                 DB::getSchemaBuilder()->hasColumn('warehouses', 'is_active'),
@@ -50,82 +62,159 @@ class PembelianController extends Controller
         ]);
     }
 
+    /**
+     * AJAX: cari PO yang MASIH BISA dipakai untuk pembelian.
+     *
+     * Kriteria:
+     * - Status: DRAFT / ORDERED / PARTIAL_RECEIVED (open)
+     * - Masih punya outstanding qty (qty_received < qty)
+     * - BELUM pernah dipakai di tabel pembelian.po_no
+     */
     public function searchPO(Request $request)
     {
-        $search = trim($request->get('q', ''));
+        $term = trim((string) $request->get('q', ''));
 
-        $query = Pembelian::query()
-            ->select(['id', 'po_no', 'invoice_date as po_date', 'status', 'supplier_id', 'warehouse_id'])
-            ->with(['supplier:id,name', 'warehouse:id,name'])
-            ->whereNotNull('po_no');
+        $query = Purchase::query()
+            ->with('supplier')
+            // status open
+            ->whereIn('status', [
+                Purchase::STATUS_DRAFT,
+                Purchase::STATUS_ORDERED,
+                Purchase::STATUS_PARTIAL_RECEIVED,
+            ])
+            // punya outstanding item
+            ->whereHas('items', function ($q) {
+                $q->whereColumn('qty_received', '<', 'qty');
+            })
+            // belum ada di tabel pembelian
+            ->whereNotExists(function ($sub) {
+                $sub->select(DB::raw(1))
+                    ->from('pembelian')
+                    ->whereColumn('pembelian.po_no', 'purchases.po_no');
+            })
+            ->orderByDesc('po_date')
+            ->orderBy('po_no');
 
-        if ($search) {
-            $query->where(function ($q) use ($search) {
-                $q->where('po_no', 'like', "%{$search}%")
-                    ->orWhereHas('supplier', function ($s) use ($search) {
-                        $s->where('name', 'like', "%{$search}%");
-                    });
+        if ($term !== '') {
+            $query->where('po_no', 'like', '%' . $term . '%');
+        }
+
+        $rows = $query->limit(25)->get()->map(function (Purchase $po) {
+            // hitung total outstanding qty dari semua item di PO ini
+            $outstanding = $po->items->sum(function (PurchaseItem $it) {
+                return max(0, (int) $it->qty - (int) $it->qty_received);
             });
-        }
 
-        $query->whereIn('status', ['draft', 'ordered', 'approved', 'partial']);
-
-        $results = $query->orderByDesc('invoice_date')
-            ->limit(20)
-            ->get()
-            ->map(function ($pembelian) {
-                return [
-                    'po_no' => $pembelian->po_no,
-                    'po_date' => $pembelian->po_date,
-                    'status' => $pembelian->status ?? 'draft',
-                    'supplier_id' => $pembelian->supplier_id,
-                    'supplier_name' => $pembelian->supplier->name ?? '-',
-                    'warehouse_id' => $pembelian->warehouse_id,
-                    'warehouse_name' => $pembelian->warehouse->name ?? '-',
-                ];
-            });
-
-        return response()->json($results);
-    }
-
-    public function getPO(string $poNo)
-    {
-        $pembelian = Pembelian::with(['items.product', 'supplier', 'warehouse'])
-            ->where('po_no', trim($poNo))
-            ->first();
-
-        if (!$pembelian) {
-            return response()->json(['message' => 'PO tidak ditemukan'], 404);
-        }
-
-        if (in_array(strtolower($pembelian->status ?? ''), ['received', 'cancelled', 'completed'])) {
-            return response()->json(['message' => 'PO sudah selesai/dibatalkan'], 409);
-        }
-
-        $items = $pembelian->items->map(function ($item) {
             return [
-                'product_id' => $item->product_id,
-                'code' => $item->product->code ?? '',
-                'product_name' => $item->product->name ?? '',
-                'qty' => (float) $item->qty,
-                'uom' => $item->uom,
-                'buy_price' => (float) $item->buy_price ?: 0,
-                'disc_percent' => (float) $item->disc_percent ?: 0,
-                'disc_nominal' => (float) $item->disc_nominal ?: 0,
-                'batch_no' => $item->batch_no,
-                'exp_date' => $item->exp_date?->format('Y-m-d'),
+                'id' => $po->id,
+                'po_no' => $po->po_no,
+                'po_date' => optional($po->po_date)->format('Y-m-d'),
+                'supplier_name' => $po->supplier->name ?? '-',
+                'status' => $po->status,
+                'outstanding' => $outstanding,
             ];
         });
 
         return response()->json([
-            'po_no' => $pembelian->po_no,
-            'supplier_id' => $pembelian->supplier_id,
-            'warehouse_id' => $pembelian->warehouse_id,
-            'po_date' => $pembelian->invoice_date ? \Carbon\Carbon::parse($pembelian->invoice_date)->format('Y-m-d') : null,
+            'data' => $rows,
+        ]);
+    }
+
+    /**
+     * Ambil detail 1 PO untuk di-load ke form Pembelian.
+     *
+     * Route:
+     *  - GET /pembelian/po/{poNo}
+     *  - GET /pembelian/get-po/{poNo}
+     *
+     * Param {poNo} bisa berisi:
+     *  - nomor PO (mis: "PO-2025-0001")
+     *  - ID numerik (mis: "12")
+     */
+    public function getPO(string $poNo)
+    {
+        $poKey = trim($poNo);
+
+        // 1) Coba cari berdasarkan nomor PO
+        $po = Purchase::query()
+            ->with(['items.product', 'supplier'])
+            ->where('po_no', $poKey)
+            ->first();
+
+        // 2) Kalau tidak ketemu dan param berupa angka murni → coba cari by id
+        if (!$po && ctype_digit($poKey)) {
+            $po = Purchase::query()
+                ->with(['items.product', 'supplier'])
+                ->find((int) $poKey);
+        }
+
+        if (!$po) {
+            return response()->json([
+                'ok' => false,
+                'message' => 'PO tidak ditemukan atau tidak valid.',
+            ], 404);
+        }
+
+        // 3) Cek apakah PO ini SUDAH dipakai di pembelian
+        $alreadyUsed = Pembelian::where('po_no', $po->po_no)->exists();
+        if ($alreadyUsed) {
+            return response()->json([
+                'ok' => false,
+                'message' => 'PO ini sudah pernah dikonversi menjadi pembelian. Tidak boleh dipakai dua kali.',
+            ], 409);
+        }
+
+        // 4) Filter item yang masih punya outstanding qty
+        $itemsWithOutstanding = $po->items->filter(function (PurchaseItem $item) {
+            return $item->qty > $item->qty_received;
+        });
+
+        if ($itemsWithOutstanding->isEmpty()) {
+            return response()->json([
+                'ok' => false,
+                'message' => 'PO ini tidak punya sisa barang (semua sudah diterima).',
+            ], 409);
+        }
+
+        // 5) Susun detail item untuk form pembelian
+        $items = $itemsWithOutstanding->map(function (PurchaseItem $item) {
+            $outQty = (int) $item->qty - (int) $item->qty_received;
+
+            return [
+                'product_id' => $item->product_id,
+                'code' => $item->product->code ?? '',
+                'product_name' => $item->product->name ?? '',
+                'qty' => (float) $outQty,
+                'uom' => $item->uom ?? 'PCS',
+                'buy_price' => (float) $item->cost,
+                'disc_percent' => 0,
+                'disc_nominal' => (float) ($item->discount ?? 0),
+                'batch_no' => null,
+                'exp_date' => null,
+            ];
+        })->values();
+
+        // 6) Response sukses → kirim supplier_id & supplier_name di top-level
+        return response()->json([
+            'ok' => true,
+            'po_no' => $po->po_no,
+            'po_date' => optional($po->po_date)->format('Y-m-d'),
+
+            // ⬇️ INI YANG PENTING BUAT AUTOFILL SUPPLIER
+            'supplier_id' => $po->supplier_id,
+            'supplier_name' => $po->supplier->name ?? '-',
+
+            // kalau nanti ada warehouse di Purchase, bisa disesuaikan
+            'warehouse_id' => $po->warehouse_id ?? null,
+            'warehouse_name' => $po->warehouse->name ?? '-',
+
             'items' => $items,
         ]);
     }
 
+    /**
+     * AJAX: lookup products untuk form pembelian.
+     */
     public function searchProducts(Request $request)
     {
         $search = trim($request->get('q', ''));
@@ -149,9 +238,13 @@ class PembelianController extends Controller
         }
 
         $products = $query->orderBy('name')->limit(25)->get();
+
         return response()->json($products);
     }
 
+    /**
+     * Simpan pembelian (dari form).
+     */
     public function store(StorePembelianRequest $request)
     {
         try {
@@ -164,10 +257,12 @@ class PembelianController extends Controller
                 'validated' => $validated,
             ]);
 
-            if (empty($validated['items']) || count($validated['items']) == 0) {
+            if (empty($validated['items']) || count($validated['items']) === 0) {
                 throw new \Exception('Tidak ada items untuk disimpan');
             }
 
+            // Kalau pembelian dari PO → gunakan po_no dari form
+            // Kalau pembelian langsung → generate nomor pseudo PO
             $poNo = $validated['po_no'] ?? $this->generatePoNo();
 
             $totalGross = 0;
@@ -175,10 +270,10 @@ class PembelianController extends Controller
             $itemsToSave = [];
 
             foreach ($validated['items'] as $idx => $itemData) {
-                $qty = floatval($itemData['qty'] ?? 0);
-                $buyPrice = floatval($itemData['buy_price'] ?? 0);
-                $discPercent = floatval($itemData['disc_percent'] ?? 0);
-                $discNominal = floatval($itemData['disc_nominal'] ?? 0);
+                $qty = (float) ($itemData['qty'] ?? 0);
+                $buyPrice = (float) ($itemData['buy_price'] ?? 0);
+                $discPercent = (float) ($itemData['disc_percent'] ?? 0);
+                $discNominal = (float) ($itemData['disc_nominal'] ?? 0);
 
                 Log::info("Processing item #{$idx}", [
                     'product_id' => $itemData['product_id'] ?? null,
@@ -199,14 +294,14 @@ class PembelianController extends Controller
                 }
 
                 $itemGross = $qty * $buyPrice;
-                $discAmountFromPercent = ($itemGross * $discPercent) / 100;
-                $totalItemDiscount = $discAmountFromPercent + $discNominal;
+                $discAmountFromPct = ($itemGross * $discPercent) / 100;
+                $totalItemDiscount = $discAmountFromPct + $discNominal;
                 $subtotal = $itemGross - $totalItemDiscount;
                 $hpp = $qty > 0 ? ($subtotal / $qty) : 0;
 
                 Log::info("Item #{$idx} calculated", [
                     'item_gross' => $itemGross,
-                    'disc_from_percent' => $discAmountFromPercent,
+                    'disc_from_percent' => $discAmountFromPct,
                     'disc_nominal' => $discNominal,
                     'total_item_discount' => $totalItemDiscount,
                     'subtotal' => $subtotal,
@@ -217,12 +312,12 @@ class PembelianController extends Controller
                 $totalDiscount += $totalItemDiscount;
 
                 $itemsToSave[] = [
-                    'product_id' => intval($itemData['product_id']),
+                    'product_id' => (int) $itemData['product_id'],
                     'qty' => $qty,
                     'uom' => $itemData['uom'] ?? 'PCS',
                     'buy_price' => $buyPrice,
                     'disc_percent' => $discPercent,
-                    'disc_amount' => $discAmountFromPercent,
+                    'disc_amount' => $discAmountFromPct,
                     'disc_nominal' => $discNominal,
                     'subtotal' => $subtotal,
                     'hpp' => $hpp,
@@ -236,9 +331,9 @@ class PembelianController extends Controller
             }
 
             $gross = $totalGross - $totalDiscount;
-            $taxPercent = floatval($validated['tax_percent'] ?? 0);
+            $taxPercent = (float) ($validated['tax_percent'] ?? 0);
             $taxAmount = ($gross * $taxPercent) / 100;
-            $extraCost = floatval($validated['extra_cost'] ?? 0);
+            $extraCost = (float) ($validated['extra_cost'] ?? 0);
             $netTotal = $gross + $taxAmount + $extraCost;
 
             Log::info('=== TOTALS CALCULATED ===', [
@@ -255,8 +350,8 @@ class PembelianController extends Controller
                 'po_no' => $poNo,
                 'invoice_no' => $validated['invoice_no'] ?? null,
                 'invoice_date' => $validated['invoice_date'],
-                'supplier_id' => intval($validated['supplier_id']),
-                'warehouse_id' => !empty($validated['warehouse_id']) ? intval($validated['warehouse_id']) : null,
+                'supplier_id' => (int) $validated['supplier_id'],
+                'warehouse_id' => !empty($validated['warehouse_id']) ? (int) $validated['warehouse_id'] : null,
                 'payment_type' => strtoupper($validated['payment_type']),
                 'cashbook' => $validated['cashbook'] ?? null,
                 'due_date' => $validated['due_date'] ?? null,
@@ -277,6 +372,7 @@ class PembelianController extends Controller
             ]);
 
             $itemsSaved = 0;
+
             foreach ($itemsToSave as $itemData) {
                 $hnaPpn = 0;
                 if ($taxPercent > 0) {
@@ -307,6 +403,7 @@ class PembelianController extends Controller
 
                 $itemsSaved++;
 
+                // update last_buy_price di tabel products
                 if ($itemData['buy_price'] > 0) {
                     DB::table('products')
                         ->where('id', $itemData['product_id'])
@@ -330,7 +427,6 @@ class PembelianController extends Controller
 
             DB::commit();
 
-            // ➜ setelah pembelian, langsung ke Penerimaan Barang
             return redirect()
                 ->route('goods-receipts.create', $pembelian->id)
                 ->with('success', "✅ Pembelian berhasil disimpan! Silakan lakukan Penerimaan Barang untuk PO {$pembelian->po_no}.");
@@ -351,6 +447,9 @@ class PembelianController extends Controller
         }
     }
 
+    /**
+     * Hitung ulang total pembelian dari items.
+     */
     public function recalculate($id)
     {
         try {
@@ -389,6 +488,9 @@ class PembelianController extends Controller
         }
     }
 
+    /**
+     * Generate nomor pseudo PO kalau pembelian tidak berasal dari PO.
+     */
     private function generatePoNo(): string
     {
         $prefix = now()->format('Ym');
@@ -397,12 +499,9 @@ class PembelianController extends Controller
             ->orderBy('po_no', 'desc')
             ->first();
 
-        if ($lastPo) {
-            $lastNumber = intval(substr($lastPo->po_no, -4));
-            $newNumber = $lastNumber + 1;
-        } else {
-            $newNumber = 1;
-        }
+        $newNumber = $lastPo
+            ? (intval(substr($lastPo->po_no, -4)) + 1)
+            : 1;
 
         return "PO-{$prefix}-" . str_pad($newNumber, 4, '0', STR_PAD_LEFT);
     }

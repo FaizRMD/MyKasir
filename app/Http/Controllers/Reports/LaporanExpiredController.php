@@ -16,11 +16,11 @@ class LaporanExpiredController extends Controller
     public function index(Request $request)
     {
         $filterStatus = $request->get('status', 'semua');
-        $filterDays = $request->get('days', 30);
+        $filterDays = (int) $request->get('days', 30);
         $search = $request->get('search', '');
 
         $today = Carbon::today();
-        $futureDate = Carbon::today()->addDays((int) $filterDays);
+        $futureDate = Carbon::today()->addDays($filterDays);
 
         $query = DB::table('pembelian_items as pi')
             ->leftJoin('products as p', 'p.id', '=', 'pi.product_id')
@@ -30,7 +30,7 @@ class LaporanExpiredController extends Controller
             ->select(
                 'pi.id',
                 'pi.product_id',
-                'p.sku as product_code',          // FIXED
+                'p.sku as product_code',
                 'p.name as product_name',
                 'pi.batch_no',
                 'pi.exp_date',
@@ -57,18 +57,26 @@ class LaporanExpiredController extends Controller
             case 'aman':
                 $query->whereDate('pi.exp_date', '>', $futureDate);
                 break;
+
+            case 'semua':
+            default:
+                // tidak ada filter tambahan
+                break;
         }
 
         // Filter pencarian
-        if (!empty($search)) {
+        if ($search !== '') {
             $query->where(function ($q) use ($search) {
                 $q->where('p.name', 'like', "%{$search}%")
-                    ->orWhere('p.sku', 'like', "%{$search}%")    // FIXED
+                    ->orWhere('p.sku', 'like', "%{$search}%")
                     ->orWhere('pi.batch_no', 'like', "%{$search}%");
             });
         }
 
-        $items = $query->orderBy('pi.exp_date', 'asc')->paginate(20);
+        // PENTING: gunakan paginate supaya tombol previous/next jalan
+        $items = $query
+            ->orderBy('pi.exp_date', 'asc')
+            ->paginate(5);
 
         $stats = $this->getExpiredStatistics($filterDays);
 
@@ -84,29 +92,28 @@ class LaporanExpiredController extends Controller
     /**
      * Statistik ringkasan expired
      */
-    private function getExpiredStatistics($days = 30)
+    private function getExpiredStatistics(int $days = 30): array
     {
         $today = Carbon::today();
-        $futureDate = Carbon::today()->addDays((int) $days);
+        $futureDate = Carbon::today()->addDays($days);
 
-        $totalExpired = DB::table('pembelian_items')
-            ->whereNotNull('exp_date')
+        $baseQuery = DB::table('pembelian_items')
+            ->whereNotNull('exp_date');
+
+        $totalExpired = (clone $baseQuery)
             ->whereDate('exp_date', '<', $today)
             ->count();
 
-        $totalWillExpire = DB::table('pembelian_items')
-            ->whereNotNull('exp_date')
+        $totalWillExpire = (clone $baseQuery)
             ->whereDate('exp_date', '>=', $today)
             ->whereDate('exp_date', '<=', $futureDate)
             ->count();
 
-        $totalSafe = DB::table('pembelian_items')
-            ->whereNotNull('exp_date')
+        $totalSafe = (clone $baseQuery)
             ->whereDate('exp_date', '>', $futureDate)
             ->count();
 
-        $lossValue = DB::table('pembelian_items')
-            ->whereNotNull('exp_date')
+        $lossValue = (clone $baseQuery)
             ->whereDate('exp_date', '<', $today)
             ->sum(DB::raw('qty * buy_price'));
 
@@ -124,11 +131,12 @@ class LaporanExpiredController extends Controller
     public function export(Request $request)
     {
         $filterStatus = $request->get('status', 'semua');
-        $filterDays = $request->get('days', 30);
+        $filterDays = (int) $request->get('days', 30);
+        $search = $request->get('search', '');
         $format = $request->get('format', 'excel');
 
         $today = Carbon::today();
-        $futureDate = Carbon::today()->addDays((int) $filterDays);
+        $futureDate = Carbon::today()->addDays($filterDays);
 
         $query = DB::table('pembelian_items as pi')
             ->leftJoin('products as p', 'p.id', '=', 'pi.product_id')
@@ -136,7 +144,7 @@ class LaporanExpiredController extends Controller
             ->leftJoin('suppliers as s', 's.id', '=', 'pm.supplier_id')
             ->whereNotNull('pi.exp_date')
             ->select(
-                'p.sku as product_code',          // FIXED
+                'p.sku as product_code',
                 'p.name as product_name',
                 'pi.batch_no',
                 'pi.exp_date',
@@ -144,11 +152,13 @@ class LaporanExpiredController extends Controller
                 'pi.uom',
                 'pi.buy_price',
                 'pm.invoice_no',
+                'pm.invoice_date',
                 's.name as supplier_name',
                 DB::raw('DATEDIFF(pi.exp_date, CURDATE()) as days_until_expired'),
                 DB::raw('(pi.qty * pi.buy_price) as total_value')
             );
 
+        // Filter status (sama seperti index)
         switch ($filterStatus) {
             case 'expired':
                 $query->whereDate('pi.exp_date', '<', $today);
@@ -162,32 +172,48 @@ class LaporanExpiredController extends Controller
             case 'aman':
                 $query->whereDate('pi.exp_date', '>', $futureDate);
                 break;
+
+            case 'semua':
+            default:
+                break;
         }
 
-        $items = $query->orderBy('pi.exp_date', 'asc')->get();
+        // Filter pencarian (sama seperti index)
+        if ($search !== '') {
+            $query->where(function ($q) use ($search) {
+                $q->where('p.name', 'like', "%{$search}%")
+                    ->orWhere('p.sku', 'like', "%{$search}%")
+                    ->orWhere('pi.batch_no', 'like', "%{$search}%");
+            });
+        }
+
+        $items = $query
+            ->orderBy('pi.exp_date', 'asc')
+            ->get();
 
         if ($format === 'excel') {
             return $this->exportToExcel($items, $filterStatus);
-        } else {
-            return $this->exportToPdf($items, $filterStatus);
         }
+
+        return $this->exportToPdf($items, $filterStatus);
     }
 
     /**
      * Export CSV
      */
-    private function exportToExcel($items, $filterStatus)
+    private function exportToExcel($items, string $filterStatus)
     {
-        $filename = 'laporan_expired_' . date('Y-m-d_His') . '.csv';
+        $filename = 'laporan_expired_' . now()->format('Y-m-d_His') . '.csv';
 
         $headers = [
             'Content-Type' => 'text/csv',
-            'Content-Disposition' => "attachment; filename=\"$filename\"",
+            'Content-Disposition' => "attachment; filename=\"{$filename}\"",
         ];
 
-        $callback = function () use ($items) {
+        $callback = static function () use ($items) {
             $file = fopen('php://output', 'w');
 
+            // Header kolom
             fputcsv($file, [
                 'Kode Produk',
                 'Nama Produk',
@@ -199,28 +225,31 @@ class LaporanExpiredController extends Controller
                 'Harga Beli',
                 'Total Nilai',
                 'Invoice',
+                'Tanggal Invoice',
                 'Supplier',
-                'Status'
+                'Status',
             ]);
 
+            // Data
             foreach ($items as $item) {
-                $status =
-                    $item->days_until_expired < 0 ? 'EXPIRED' :
-                    ($item->days_until_expired <= 30 ? 'AKAN EXPIRED' : 'AMAN');
+                $status = $item->days_until_expired < 0
+                    ? 'EXPIRED'
+                    : ($item->days_until_expired <= 30 ? 'AKAN EXPIRED' : 'AMAN');
 
                 fputcsv($file, [
                     $item->product_code,
                     $item->product_name,
                     $item->batch_no,
                     $item->exp_date,
-                    $item->days_until_expired . ' hari',
+                    $item->days_until_expired,
                     $item->qty,
                     $item->uom,
-                    number_format($item->buy_price, 2),
-                    number_format($item->total_value, 2),
+                    $item->buy_price,
+                    $item->total_value,
                     $item->invoice_no,
+                    $item->invoice_date,
                     $item->supplier_name,
-                    $status
+                    $status,
                 ]);
             }
 
@@ -233,15 +262,15 @@ class LaporanExpiredController extends Controller
     /**
      * Export PDF
      */
-    private function exportToPdf($items, $filterStatus)
+    private function exportToPdf($items, string $filterStatus)
     {
         $pdf = Pdf::loadView('reports.expired.pdf', [
             'items' => $items,
             'filterStatus' => $filterStatus,
-            'generatedAt' => now()->format('d/m/Y H:i:s')
+            'generatedAt' => now()->format('d/m/Y H:i:s'),
         ]);
 
-        return $pdf->download('laporan_expired_' . date('Y-m-d') . '.pdf');
+        return $pdf->download('laporan_expired_' . now()->format('Y-m-d') . '.pdf');
     }
 
     /**
@@ -249,9 +278,9 @@ class LaporanExpiredController extends Controller
      */
     public function getUpcomingExpired(Request $request)
     {
-        $days = $request->get('days', 30);
+        $days = (int) $request->get('days', 30);
         $today = Carbon::today();
-        $futureDate = Carbon::today()->addDays((int) $days);
+        $futureDate = Carbon::today()->addDays($days);
 
         $items = DB::table('pembelian_items as pi')
             ->leftJoin('products as p', 'p.id', '=', 'pi.product_id')
