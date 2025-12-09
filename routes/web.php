@@ -1,6 +1,7 @@
 <?php
 
 use Illuminate\Support\Facades\Route;
+use Illuminate\Http\Request; // <-- PENTING: tambahkan ini
 
 // Controllers
 use App\Http\Controllers\DashboardController;
@@ -27,22 +28,52 @@ use App\Http\Controllers\Reports\LaporanExpiredController;
 |--------------------------------------------------------------------------
 | PUBLIC / AUTH REDIRECT
 |--------------------------------------------------------------------------
+|
+| - Jika belum login  -> redirect ke login
+| - Jika login sebagai kasir -> redirect ke kasir.index (Transaksi)
+| - Jika login sebagai admin/owner -> redirect ke dashboard
+|
 */
 Route::get('/', function () {
     if (auth()->check()) {
+        $user = auth()->user();
+
+        if ($user && $user->hasRole('kasir')) {
+            // Kasir langsung ke halaman kasir POS
+            return redirect()->route('kasir.index');
+        }
+
+        // Admin / Owner tetap ke dashboard
         return redirect()->route('dashboard');
     }
+
     return redirect()->route('login');
 })->name('home');
 
 /*
 |--------------------------------------------------------------------------
-| DASHBOARD - All Authenticated Users
+| DASHBOARD
 |--------------------------------------------------------------------------
+|
+| Semua user yang sudah login & verified boleh akses route ini,
+| tapi kalau role = kasir akan LANGSUNG diarahkan ke kasir.index.
+| Admin / owner akan tetap melihat halaman Dashboard.
+|
+| DI SINI kita panggil DashboardController::index($request)
+| dengan parameter Request, supaya tidak error lagi.
+|
 */
-Route::middleware(['auth', 'verified'])->group(function () {
-    Route::get('/dashboard', [DashboardController::class, 'index'])->name('dashboard');
-});
+Route::middleware(['auth', 'verified'])->get('/dashboard', function (Request $request) {
+    $user = $request->user();
+
+    if ($user && $user->hasRole('kasir')) {
+        // Kasir tidak boleh ke dashboard, langsung lempar ke Transaksi
+        return redirect()->route('kasir.index');
+    }
+
+    // Selain kasir (admin/owner), jalankan DashboardController@index dengan Request
+    return app(DashboardController::class)->index($request);
+})->name('dashboard');
 
 /*
 |--------------------------------------------------------------------------
@@ -100,12 +131,15 @@ Route::middleware(['auth', 'role:kasir|admin|owner'])->group(function () {
     /* ================= SALE ITEMS API (untuk AJAX/API POS) ================= */
     Route::prefix('sale-items')->name('sale-items.')->group(function () {
         Route::post('/', [SaleItemController::class, 'store'])->name('store');
+
         Route::get('/{saleItem}', [SaleItemController::class, 'show'])
             ->whereNumber('saleItem')
             ->name('show');
+
         Route::put('/{saleItem}', [SaleItemController::class, 'update'])
             ->whereNumber('saleItem')
             ->name('update');
+
         Route::delete('/{saleItem}', [SaleItemController::class, 'destroy'])
             ->whereNumber('saleItem')
             ->name('destroy');
@@ -118,10 +152,17 @@ Route::middleware(['auth', 'role:kasir|admin|owner'])->group(function () {
      */
     Route::get('/products/lookup', [ProductController::class, 'lookup'])
         ->name('products.lookup');
+});
 
-    // (opsional) kalau mau quick add product dari POS juga:
-    // Route::post('/products/quick-store', [ProductController::class, 'quickStore'])
-    //     ->name('products.quickStore');
+/*
+|--------------------------------------------------------------------------
+| LOKASI OBAT – boleh kasir, admin, owner
+|--------------------------------------------------------------------------
+| Kasir punya hak akses ke master data Lokasi Obat.
+*/
+Route::middleware(['auth', 'role:kasir|admin|owner'])->group(function () {
+    Route::resource('lokasi-obat', LokasiObatController::class)
+        ->parameters(['lokasi-obat' => 'lokasiObat']);
 });
 
 /*
@@ -176,8 +217,7 @@ Route::middleware(['auth', 'role:admin|owner'])->group(function () {
     Route::resource('golongan-obat', GolonganObatController::class)
         ->parameters(['golongan-obat' => 'golonganObat']);
 
-    Route::resource('lokasi-obat', LokasiObatController::class)
-        ->parameters(['lokasi-obat' => 'lokasiObat']);
+    // lokasi-obat TIDAK lagi di sini, karena sudah digroup di atas (kasir+admin+owner)
 
     Route::resource('apoteker', ApotekerController::class);
 

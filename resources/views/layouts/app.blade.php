@@ -373,6 +373,9 @@
         $cacheKey = session('_switched_at', $me?->updated_at?->timestamp ?? time());
         $avatarUrl = $me ? route('profile.avatar', $me->id) . '?v=' . $cacheKey : null;
 
+        // ROLE saat ini (lowercase)
+        $userRole = $me && $me->role ? strtolower($me->role) : null;
+
         // Notifikasi: hutang, stok menipis, expired
         $unpaidPurchases = collect();
         try {
@@ -496,12 +499,15 @@
                                                 </div>
                                             </div>
                                         @endforeach
-                                        <div class="text-end mt-1">
-                                            <a href="{{ route('reports.pembelian.hutang') }}"
-                                                class="small text-decoration-none">
-                                                Lihat detail hutang <i class="bi bi-chevron-right small"></i>
-                                            </a>
-                                        </div>
+
+                                        @if (in_array($userRole, ['admin', 'owner']))
+                                            <div class="text-end mt-1">
+                                                <a href="{{ route('reports.pembelian.hutang') }}"
+                                                    class="small text-decoration-none">
+                                                    Lihat detail hutang <i class="bi bi-chevron-right small"></i>
+                                                </a>
+                                            </div>
+                                        @endif
                                     </div>
                                     <hr class="my-2">
                                 @endif
@@ -531,12 +537,15 @@
                                                 </div>
                                             </div>
                                         @endforeach
-                                        <div class="text-end mt-1">
-                                            <a href="{{ route('stockobat.index') }}"
-                                                class="small text-decoration-none">
-                                                Lihat stok <i class="bi bi-chevron-right small"></i>
-                                            </a>
-                                        </div>
+
+                                        @if (in_array($userRole, ['admin', 'owner']))
+                                            <div class="text-end mt-1">
+                                                <a href="{{ route('stockobat.index') }}"
+                                                    class="small text-decoration-none">
+                                                    Lihat stok <i class="bi bi-chevron-right small"></i>
+                                                </a>
+                                            </div>
+                                        @endif
                                     </div>
                                     <hr class="my-2">
                                 @endif
@@ -578,12 +587,15 @@
                                                 </div>
                                             </div>
                                         @endforeach
-                                        <div class="text-end mt-1">
-                                            <a href="{{ route('reports.expired.index') }}"
-                                                class="small text-decoration-none">
-                                                Lihat laporan expired <i class="bi bi-chevron-right small"></i>
-                                            </a>
-                                        </div>
+
+                                        @if (in_array($userRole, ['admin', 'owner']))
+                                            <div class="text-end mt-1">
+                                                <a href="{{ route('reports.expired.index') }}"
+                                                    class="small text-decoration-none">
+                                                    Lihat laporan expired <i class="bi bi-chevron-right small"></i>
+                                                </a>
+                                            </div>
+                                        @endif
                                     </div>
                                 @endif
                             @endif
@@ -720,17 +732,23 @@
                     </div>
                 </div>
 
-                <div class="menu-title">Utama</div>
-                <nav class="nav nav-sidebar flex-column mb-1">
-                    @php
-                        $dashUrl = \Illuminate\Support\Facades\Route::has('dashboard') ? route('dashboard') : url('/');
-                        $isDash = request()->is('/') || request()->is('dashboard') || request()->is('dashboard/*');
-                    @endphp
-                    <a class="nav-link {{ $isDash ? 'active' : '' }}" href="{{ $dashUrl }}">
-                        <i data-feather="home" class="icon"></i><span class="text">Dashboard</span>
-                    </a>
-                </nav>
+                {{-- UTAMA / DASHBOARD – disembunyikan untuk kasir --}}
+                @if (!in_array($userRole, ['kasir']))
+                    <div class="menu-title">Utama</div>
+                    <nav class="nav nav-sidebar flex-column mb-1">
+                        @php
+                            $dashUrl = \Illuminate\Support\Facades\Route::has('dashboard')
+                                ? route('dashboard')
+                                : url('/');
+                            $isDash = request()->is('/') || request()->is('dashboard') || request()->is('dashboard/*');
+                        @endphp
+                        <a class="nav-link {{ $isDash ? 'active' : '' }}" href="{{ $dashUrl }}">
+                            <i data-feather="home" class="icon"></i><span class="text">Dashboard</span>
+                        </a>
+                    </nav>
+                @endif
 
+                {{-- KASIR – boleh kasir/admin/owner --}}
                 <div class="menu-title">Kasir</div>
                 <nav class="nav nav-sidebar flex-column">
                     <a href="#kasirSub"
@@ -747,77 +765,98 @@
                     </div>
                 </nav>
 
-                <div class="menu-title">Pembelian</div>
-                <nav class="nav nav-sidebar flex-column">
-                    <a href="#purchaseSub"
-                        class="nav-link {{ request()->is('purchases*') || request()->is('goods-receipt*') || request()->is('pembelian*') ? 'active' : '' }}"
-                        data-bs-toggle="collapse" role="button">
-                        <i data-feather="archive" class="icon"></i><span class="text">Pembelian</span>
-                        <span class="ms-auto" data-feather="chevron-down"></span>
-                    </a>
-                    <div class="collapse submenu {{ request()->is('purchases*') || request()->is('goods-receipt*') || request()->is('pembelian*') ? 'show' : '' }}"
-                        id="purchaseSub">
-                        <a href="{{ route('purchases.index') }}"
-                            class="{{ request()->is('purchases*') ? 'active' : '' }}">Purchase Order</a>
-                        <a href="{{ route('pembelian.create') }}"
-                            class="{{ request()->is('pembelian*') ? 'active' : '' }}">Pembelian</a>
-                        <a href="{{ route('goods-receipt.index') }}"
-                            class="{{ request()->is('goods-receipt*') ? 'active' : '' }}">Penerimaan Barang</a>
-                    </div>
-                </nav>
-
-                <div class="menu-title">Master Data</div>
-                <nav class="nav nav-sidebar flex-column">
-                    <a href="#masterSub"
-                        class="nav-link {{ request()->is('products*') || request()->is('suppliers*') || request()->is('golongan-obat*') || request()->is('lokasi-obat*') || request()->is('apoteker*') ? 'active' : '' }}"
-                        data-bs-toggle="collapse" role="button">
-                        <i data-feather="grid" class="icon"></i><span class="text">Master Data</span>
-                        <span class="ms-auto" data-feather="chevron-down"></span>
-                    </a>
-                    <div class="collapse submenu {{ request()->is('products*') || request()->is('suppliers*') || request()->is('golongan-obat*') || request()->is('lokasi-obat*') || request()->is('apoteker*') ? 'show' : '' }}"
-                        id="masterSub">
-                        <a href="{{ route('products.index') }}"
-                            class="{{ request()->is('products*') ? 'active' : '' }}">Produk</a>
-                        <a href="{{ route('suppliers.index') }}"
-                            class="{{ request()->is('suppliers*') ? 'active' : '' }}">Supplier</a>
-                        <a href="{{ route('golongan-obat.index') }}"
-                            class="{{ request()->is('golongan-obat*') ? 'active' : '' }}">Golongan Obat</a>
-                        <a href="{{ route('lokasi-obat.index') }}"
-                            class="{{ request()->is('lokasi-obat*') ? 'active' : '' }}">Lokasi Obat</a>
-                        <a href="{{ route('apoteker.index') }}"
-                            class="{{ request()->is('apoteker*') ? 'active' : '' }}">Apoteker</a>
-                    </div>
-                </nav>
-
-                <div class="menu-title">Laporan</div>
-                <nav class="nav nav-sidebar flex-column mb-2">
-                    <a href="#reportSub"
-                        class="nav-link {{ request()->is('reports*') || request()->is('stockobat*') ? 'active' : '' }}"
-                        data-bs-toggle="collapse" role="button">
-                        <i data-feather="bar-chart-2" class="icon"></i><span class="text">Laporan</span>
-                        <span class="ms-auto" data-feather="chevron-down"></span>
-                    </a>
-                    <div class="collapse submenu {{ request()->is('reports*') || request()->is('stockobat*') ? 'show' : '' }}"
-                        id="reportSub">
-                        <a href="{{ route('reports.sales.index') }}"
-                            class="{{ request()->routeIs('reports.sales.*') ? 'active' : '' }}">Laporan Penjualan</a>
-                        <a href="{{ route('purchasing.suppliers.report') }}"
-                            class="{{ request()->routeIs('purchasing.suppliers.report') ? 'active' : '' }}">Laporan
-                            Supplier</a>
-                        <a href="{{ route('stockobat.index') }}"
-                            class="{{ request()->routeIs('stockobat.*') ? 'active' : '' }}">Laporan Stok Obat</a>
-                        <a href="{{ route('reports.purchases.index') }}"
-                            class="{{ request()->routeIs('reports.purchases.*') ? 'active' : '' }}">Laporan Purchase
-                            Order</a>
-                        <a href="{{ route('reports.pembelian.index') }}"
-                            class="{{ request()->routeIs('reports.pembelian.*') ? 'active' : '' }}">Laporan
-                            Pembelian</a>
-                        <a href="{{ route('reports.expired.index') }}"
-                            class="{{ request()->routeIs('reports.expired.*') ? 'active' : '' }}">
-                            <i class="bi bi-calendar-x text-danger me-1"></i> Laporan Expired
+                {{-- PEMBELIAN – hanya admin/owner --}}
+                @if (in_array($userRole, ['admin', 'owner']))
+                    <div class="menu-title">Pembelian</div>
+                    <nav class="nav nav-sidebar flex-column">
+                        <a href="#purchaseSub"
+                            class="nav-link {{ request()->is('purchases*') || request()->is('goods-receipt*') || request()->is('pembelian*') ? 'active' : '' }}"
+                            data-bs-toggle="collapse" role="button">
+                            <i data-feather="archive" class="icon"></i><span class="text">Pembelian</span>
+                            <span class="ms-auto" data-feather="chevron-down"></span>
                         </a>
-                    </div>
-                </nav>
+                        <div class="collapse submenu {{ request()->is('purchases*') || request()->is('goods-receipt*') || request()->is('pembelian*') ? 'show' : '' }}"
+                            id="purchaseSub">
+                            <a href="{{ route('purchases.index') }}"
+                                class="{{ request()->is('purchases*') ? 'active' : '' }}">Purchase Order</a>
+                            <a href="{{ route('pembelian.create') }}"
+                                class="{{ request()->is('pembelian*') ? 'active' : '' }}">Pembelian</a>
+                            <a href="{{ route('goods-receipt.index') }}"
+                                class="{{ request()->is('goods-receipt*') ? 'active' : '' }}">Penerimaan Barang</a>
+                        </div>
+                    </nav>
+                @endif
+
+                {{-- MASTER DATA --}}
+                @if (in_array($userRole, ['admin', 'owner']))
+                    {{-- Versi lengkap untuk admin & owner --}}
+                    <div class="menu-title">Master Data</div>
+                    <nav class="nav nav-sidebar flex-column">
+                        <a href="#masterSub"
+                            class="nav-link {{ request()->is('products*') || request()->is('suppliers*') || request()->is('golongan-obat*') || request()->is('lokasi-obat*') || request()->is('apoteker*') ? 'active' : '' }}"
+                            data-bs-toggle="collapse" role="button">
+                            <i data-feather="grid" class="icon"></i><span class="text">Master Data</span>
+                            <span class="ms-auto" data-feather="chevron-down"></span>
+                        </a>
+                        <div class="collapse submenu {{ request()->is('products*') || request()->is('suppliers*') || request()->is('golongan-obat*') || request()->is('lokasi-obat*') || request()->is('apoteker*') ? 'show' : '' }}"
+                            id="masterSub">
+                            <a href="{{ route('products.index') }}"
+                                class="{{ request()->is('products*') ? 'active' : '' }}">Produk</a>
+                            <a href="{{ route('suppliers.index') }}"
+                                class="{{ request()->is('suppliers*') ? 'active' : '' }}">Supplier</a>
+                            <a href="{{ route('golongan-obat.index') }}"
+                                class="{{ request()->is('golongan-obat*') ? 'active' : '' }}">Golongan Obat</a>
+                            <a href="{{ route('lokasi-obat.index') }}"
+                                class="{{ request()->is('lokasi-obat*') ? 'active' : '' }}">Lokasi Obat</a>
+                            <a href="{{ route('apoteker.index') }}"
+                                class="{{ request()->is('apoteker*') ? 'active' : '' }}">Apoteker</a>
+                        </div>
+                    </nav>
+                @elseif ($userRole === 'kasir')
+                    {{-- Kasir hanya bisa Lokasi Obat --}}
+                    <div class="menu-title">Master Data</div>
+                    <nav class="nav nav-sidebar flex-column mb-1">
+                        <a class="nav-link {{ request()->is('lokasi-obat*') ? 'active' : '' }}"
+                            href="{{ route('lokasi-obat.index') }}">
+                            <i data-feather="map-pin" class="icon"></i><span class="text">Lokasi Obat</span>
+                        </a>
+                    </nav>
+                @endif
+
+                {{-- LAPORAN – hanya admin/owner --}}
+                @if (in_array($userRole, ['admin', 'owner']))
+                    <div class="menu-title">Laporan</div>
+                    <nav class="nav nav-sidebar flex-column mb-2">
+                        <a href="#reportSub"
+                            class="nav-link {{ request()->is('reports*') || request()->is('stockobat*') ? 'active' : '' }}"
+                            data-bs-toggle="collapse" role="button">
+                            <i data-feather="bar-chart-2" class="icon"></i><span class="text">Laporan</span>
+                            <span class="ms-auto" data-feather="chevron-down"></span>
+                        </a>
+                        <div class="collapse submenu {{ request()->is('reports*') || request()->is('stockobat*') ? 'show' : '' }}"
+                            id="reportSub">
+                            <a href="{{ route('reports.sales.index') }}"
+                                class="{{ request()->routeIs('reports.sales.*') ? 'active' : '' }}">Laporan
+                                Penjualan</a>
+                            <a href="{{ route('purchasing.suppliers.report') }}"
+                                class="{{ request()->routeIs('purchasing.suppliers.report') ? 'active' : '' }}">Laporan
+                                Supplier</a>
+                            <a href="{{ route('stockobat.index') }}"
+                                class="{{ request()->routeIs('stockobat.*') ? 'active' : '' }}">Laporan Stok Obat</a>
+                            <a href="{{ route('reports.purchases.index') }}"
+                                class="{{ request()->routeIs('reports.purchases.*') ? 'active' : '' }}">Laporan
+                                Purchase
+                                Order</a>
+                            <a href="{{ route('reports.pembelian.index') }}"
+                                class="{{ request()->routeIs('reports.pembelian.*') ? 'active' : '' }}">Laporan
+                                Pembelian</a>
+                            <a href="{{ route('reports.expired.index') }}"
+                                class="{{ request()->routeIs('reports.expired.*') ? 'active' : '' }}">
+                                <i class="bi bi-calendar-x text-danger me-1"></i> Laporan Expired
+                            </a>
+                        </div>
+                    </nav>
+                @endif
 
                 <div class="sidebar-footer">
                     <div>© {{ date('Y') }} MyKasir Apotek</div>
