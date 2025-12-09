@@ -433,24 +433,10 @@
                                     <i class="bi bi-box-arrow-in-right me-2"></i>MASUK KE SISTEM
                                 </button>
 
-                                <div class="divider my-4">atau</div>
-
-                                <!-- CTA Register -->
-                                @if (Route::has('register'))
-                                    <div class="text-center p-3 rounded-3" style="background:var(--brand-light)">
-                                        <span class="muted">Belum punya akun?</span>
-                                        <a href="{{ route('register') }}"
-                                            class="link-primary text-decoration-none ms-1">
-                                            Daftar sekarang <i class="bi bi-arrow-right"></i>
-                                        </a>
-                                    </div>
-                                @endif
-                            </form>
-
-                            <div class="text-center mt-4 small" style="color:#a0757f">
-                                <i class="bi bi-shield-check me-1"></i>
-                                © {{ date('Y') }} MyKasir Apotek. Semua hak dilindungi.
-                            </div>
+                                <div class="text-center mt-4 small" style="color:#a0757f">
+                                    <i class="bi bi-shield-check me-1"></i>
+                                    © {{ date('Y') }} MyKasir Apotek. Semua hak dilindungi.
+                                </div>
                         </div>
 
                         <!-- Illustration / marketing side -->
