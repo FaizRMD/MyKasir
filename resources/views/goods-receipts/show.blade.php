@@ -177,13 +177,11 @@
         <a href="{{ route('goods-receipts.index') }}" class="btn btn-outline-secondary">Kembali</a>
         <div class="d-flex gap-2">
             @if($grn->status === 'draft')
+                <a href="{{ route('goods-receipts.edit', $grn->id) }}" class="btn btn-warning">Edit</a>
                 <form action="{{ route('goods-receipts.approve', $grn->id) }}" method="POST" style="display:inline;">
                     @csrf
-                    <button type="submit" class="btn btn-maroon" onclick="return confirm('Setujui penerimaan barang ini? Stok akan diupdate.');">Approve Penerimaan</button>
+                    <button type="submit" class="btn btn-maroon" onclick="return confirm('Setujui penerimaan barang ini? Stok akan diupdate.');">Approve</button>
                 </form>
-            @endif
-            @if($grn->pembelian_id)
-                <a href="{{ route('reports.pembelian.show', $grn->pembelian_id) }}" class="btn btn-light">Terima Barang</a>
             @endif
             <form action="{{ route('goods-receipts.destroy', $grn->id) }}" method="POST" style="display:inline;" onsubmit="return confirm('Yakin hapus penerimaan ini? {{ $grn->status === 'received' ? 'Stok akan dikembalikan.' : '' }}');">
                 @csrf

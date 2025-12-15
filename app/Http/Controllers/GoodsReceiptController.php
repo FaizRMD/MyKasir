@@ -198,6 +198,67 @@ class GoodsReceiptController extends Controller
         }
     }
 
+    public function edit(GoodsReceipt $grn)
+    {
+        if ($grn->status !== 'draft') {
+            return redirect()->route('goods-receipts.show', $grn->id)
+                ->with('error', 'Hanya GRN draft yang bisa diedit.');
+        }
+
+        $grn->loadMissing([
+            'supplier:id,name',
+            'pembelian:id,po_no,status,supplier_id',
+            'items' => fn($q) => $q->with(['product:id,code,name,sku', 'pembelianItem:id,qty'])->orderBy('id'),
+        ]);
+
+        return view('goods-receipts.edit', compact('grn'));
+    }
+
+    public function update(Request $request, GoodsReceipt $grn)
+    {
+        if ($grn->status !== 'draft') {
+            return back()->with('error', 'Hanya GRN draft yang bisa diedit.');
+        }
+
+        $data = $request->validate([
+            'received_at' => 'required|date',
+            'notes' => 'nullable|string|max:500',
+            'items' => 'required|array|min:1',
+            'items.*.id' => 'required|exists:goods_receipt_items,id',
+            'items.*.qty' => 'required|numeric|min:0.0001',
+            'items.*.batch_no' => 'nullable|string|max:100',
+            'items.*.exp_date' => 'nullable|date',
+        ]);
+
+        try {
+            DB::transaction(function () use ($grn, $data) {
+                $grn->update([
+                    'received_at' => $data['received_at'],
+                    'notes' => $data['notes'] ?? null,
+                ]);
+
+                foreach ($data['items'] as $itemData) {
+                    $grnItem = GoodsReceiptItem::findOrFail($itemData['id']);
+                    $grnItem->update([
+                        'qty' => $itemData['qty'],
+                        'batch_no' => $itemData['batch_no'] ?? null,
+                        'exp_date' => $itemData['exp_date'] ?? null,
+                    ]);
+                }
+            });
+
+            return redirect()
+                ->route('goods-receipts.show', $grn->id)
+                ->with('success', 'Penerimaan barang berhasil diperbarui.');
+        } catch (\Throwable $e) {
+            report($e);
+
+            return back()
+                ->withInput()
+                ->withErrors(['general' => 'Gagal memperbarui penerimaan: ' . $e->getMessage()]);
+        }
+    }
+
     public function destroy(GoodsReceipt $grn)
     {
         try {

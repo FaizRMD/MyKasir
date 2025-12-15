@@ -266,6 +266,14 @@ Route::middleware(['auth', 'role:admin|owner'])->group(function () {
             ->whereNumber('grn')
             ->name('show');
 
+        Route::get('/{grn}/edit', [GoodsReceiptController::class, 'edit'])
+            ->whereNumber('grn')
+            ->name('edit');
+
+        Route::put('/{grn}', [GoodsReceiptController::class, 'update'])
+            ->whereNumber('grn')
+            ->name('update');
+
         Route::post('/{grn}/approve', [GoodsReceiptController::class, 'approve'])
             ->whereNumber('grn')
             ->name('approve');
