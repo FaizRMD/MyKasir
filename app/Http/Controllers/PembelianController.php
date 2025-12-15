@@ -429,7 +429,7 @@ class PembelianController extends Controller
 
             return redirect()
                 ->route('goods-receipts.create', $pembelian->id)
-                ->with('success', "✅ Pembelian berhasil disimpan! Silakan lakukan Penerimaan Barang untuk PO {$pembelian->po_no}.");
+                ->with('success', "✅ Pembelian berhasil disimpan! Silakan lakukan penerimaan barang.");
 
         } catch (\Exception $e) {
             DB::rollBack();

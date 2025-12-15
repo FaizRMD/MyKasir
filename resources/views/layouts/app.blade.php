@@ -810,6 +810,8 @@
                                 class="{{ request()->is('lokasi-obat*') ? 'active' : '' }}">Lokasi Obat</a>
                             <a href="{{ route('apoteker.index') }}"
                                 class="{{ request()->is('apoteker*') ? 'active' : '' }}">Apoteker</a>
+                            <a href="{{ route('admin.users.create') }}"
+                                class="{{ request()->is('admin/users*') ? 'active' : '' }}">Pengguna</a>
                         </div>
                     </nav>
                 @elseif ($userRole === 'kasir')

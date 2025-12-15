@@ -23,6 +23,7 @@ use App\Http\Controllers\StockObatController;
 use App\Http\Controllers\Reports\PembelianReportController;
 use App\Http\Controllers\SwitchAccountController;
 use App\Http\Controllers\Reports\LaporanExpiredController;
+use App\Http\Controllers\Admin\UserController as AdminUserController;
 
 /*
 |--------------------------------------------------------------------------
@@ -173,6 +174,12 @@ Route::middleware(['auth', 'role:kasir|admin|owner'])->group(function () {
 */
 Route::middleware(['auth', 'role:admin|owner'])->group(function () {
 
+    /* ================= USER MANAGEMENT (ADMIN CREATES CASHIER/OTHERS) ================= */
+    Route::prefix('admin/users')->name('admin.users.')->group(function () {
+        Route::get('/create', [AdminUserController::class, 'create'])->name('create');
+        Route::post('/', [AdminUserController::class, 'store'])->name('store');
+    });
+
     /* ================= PRODUCTS MANAGEMENT ================= */
     Route::prefix('products')->name('products.')->group(function () {
         // Export routes
@@ -258,6 +265,14 @@ Route::middleware(['auth', 'role:admin|owner'])->group(function () {
         Route::get('/{grn}', [GoodsReceiptController::class, 'show'])
             ->whereNumber('grn')
             ->name('show');
+
+        Route::post('/{grn}/approve', [GoodsReceiptController::class, 'approve'])
+            ->whereNumber('grn')
+            ->name('approve');
+
+        Route::delete('/{grn}', [GoodsReceiptController::class, 'destroy'])
+            ->whereNumber('grn')
+            ->name('destroy');
     });
 
     // Alias tunggal (jika masih dipakai di UI lama)

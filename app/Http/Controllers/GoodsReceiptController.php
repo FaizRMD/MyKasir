@@ -7,6 +7,7 @@ use App\Models\Pembelian;
 use App\Models\PembelianItem;
 use App\Models\GoodsReceipt;
 use App\Models\GoodsReceiptItem;
+use App\Services\RunningNumber;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\ValidationException;
@@ -56,7 +57,7 @@ class GoodsReceiptController extends Controller
             });
         }
 
-        $grns = $q->paginate(15)->withQueryString();
+        $grns = $q->paginate(5)->withQueryString();
 
         return view('goods-receipts.index', compact('grns'));
     }
@@ -87,6 +88,7 @@ class GoodsReceiptController extends Controller
 
     public function store(Request $request, Pembelian $pembelian)
     {
+        /** @var Pembelian $pembelian */
         $data = $request->validate([
             'received_at' => 'required|date',
             'notes' => 'nullable|string|max:500',
@@ -99,12 +101,16 @@ class GoodsReceiptController extends Controller
         ]);
 
         try {
-            DB::transaction(function () use ($pembelian, $data) {
+            $grn = null;
+
+            DB::transaction(function () use (&$grn, $pembelian, $data) {
                 $grn = GoodsReceipt::create([
                     'pembelian_id' => $pembelian->id,
                     'supplier_id' => $pembelian->supplier_id,
                     'received_at' => $data['received_at'],
+                    'grn_no' => RunningNumber::next('GRN', 'goods_receipts', 'grn_no', $data['received_at']),
                     'notes' => $data['notes'] ?? null,
+                    'status' => 'draft',
                 ]);
 
                 foreach ($data['items'] as $lineIndex => $line) {
@@ -131,10 +137,6 @@ class GoodsReceiptController extends Controller
                             'batch_no' => $row['batch_no'] ?? null,
                             'exp_date' => $row['exp_date'] ?? null,
                         ]);
-
-                        Product::whereKey($pi->product_id)
-                            ->lockForUpdate()
-                            ->increment('stock', $qty);
                     }
                 }
             });
@@ -151,7 +153,89 @@ class GoodsReceiptController extends Controller
         }
 
         return redirect()
-            ->route('reports.pembelian.show', $pembelian->id)
-            ->with('success', 'Penerimaan barang tersimpan dan stok bertambah.');
+            ->route('goods-receipts.show', $grn->id)
+            ->with('success', 'Penerimaan barang tersimpan sebagai draft. Silakan approve untuk mengkonfirmasi penerimaan.');
+    }
+
+    public function approve(GoodsReceipt $grn)
+    {
+        if ($grn->status === 'received') {
+            return back()->with('info', 'Penerimaan sudah dikonfirmasi sebelumnya.');
+        }
+
+        try {
+            DB::transaction(function () use ($grn) {
+                foreach ($grn->items as $grnItem) {
+                    $pi = PembelianItem::lockForUpdate()->find($grnItem->pembelian_item_id);
+                    if ($pi) {
+                        $qty = (float) $grnItem->qty;
+                        $pi->qty_received = min((int) $pi->qty, (int) $pi->qty_received + $qty);
+                        $pi->save();
+                    }
+
+                    Product::whereKey($grnItem->product_id)
+                        ->lockForUpdate()
+                        ->increment('stock', $grnItem->qty);
+                }
+
+                if ($grn->pembelian) {
+                    $grn->pembelian->load('items');
+                    $hasOutstanding = $grn->pembelian->items->contains(function ($it) {
+                        return (int) $it->qty_received < (int) $it->qty;
+                    });
+                    $grn->pembelian->status = $hasOutstanding ? 'partial_received' : 'received';
+                    $grn->pembelian->save();
+                }
+
+                $grn->status = 'received';
+                $grn->save();
+            });
+
+            return back()->with('success', 'Penerimaan barang dikonfirmasi. Stok telah diperbarui.');
+        } catch (\Throwable $e) {
+            report($e);
+            return back()->withErrors(['general' => 'Gagal mengkonfirmasi penerimaan: ' . $e->getMessage()]);
+        }
+    }
+
+    public function destroy(GoodsReceipt $grn)
+    {
+        try {
+            DB::transaction(function () use ($grn) {
+                // Hanya revert stok jika sudah received
+                if ($grn->status === 'received') {
+                    foreach ($grn->items as $grnItem) {
+                        $pi = PembelianItem::find($grnItem->pembelian_item_id);
+                        if ($pi) {
+                            $pi->qty_received = max(0, (int)$pi->qty_received - (int)$grnItem->qty);
+                            $pi->save();
+                        }
+
+                        Product::whereKey($grnItem->product_id)
+                            ->decrement('stock', $grnItem->qty);
+                    }
+
+                    if ($grn->pembelian) {
+                        $grn->pembelian->load('items');
+                        $hasOutstanding = $grn->pembelian->items->contains(function ($it) {
+                            return (int) $it->qty_received < (int) $it->qty;
+                        });
+                        $grn->pembelian->status = $hasOutstanding ? 'partial_received' : 'draft';
+                        $grn->pembelian->save();
+                    }
+                }
+
+                $grn->delete();
+            });
+
+            return redirect()
+                ->route('goods-receipts.index')
+                ->with('success', 'Penerimaan barang berhasil dihapus.');
+        } catch (\Throwable $e) {
+            report($e);
+
+            return back()
+                ->withErrors(['general' => 'Gagal menghapus penerimaan: ' . $e->getMessage()]);
+        }
     }
 }

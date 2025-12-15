@@ -3,7 +3,7 @@
 @section('title', 'Detail Penerimaan Barang')
 
 @section('breadcrumb')
-    <li class="breadcrumb-item"><a href="{{ route('grn.index') }}">Penerimaan</a></li>
+    <li class="breadcrumb-item"><a href="{{ route('goods-receipts.index') }}">Penerimaan</a></li>
     <li class="breadcrumb-item active" aria-current="page">GRN #{{ $grn->id }}</li>
 @endsection
 
@@ -51,13 +51,19 @@
             </div>
         </div>
         <div class="text-end">
-            @php $poStatus = $grn->purchase->status ?? 'draft'; @endphp
-            <div class="mb-1">
-                <span class="status-badge status-{{ $poStatus }}">{{ str_replace('_',' ', $poStatus) }}</span>
+            @php $poStatus = $grn->pembelian->status ?? 'draft'; @endphp
+            <div class="mb-2">
+                <span class="status-badge status-{{ $poStatus }}">Status PO: {{ str_replace('_',' ', $poStatus) }}</span>
             </div>
-            <a href="{{ route('purchases.show', $grn->purchase_id) }}" class="btn btn-light btn-sm">
-                Lihat PO #{{ $grn->purchase_id }}
-            </a>
+            @php
+                $grnStatus = $poStatus === 'received' ? 'selesai' : ($poStatus === 'partial_received' ? 'parsial' : 'draft');
+            @endphp
+            <div class="mb-2">
+                <span class="badge-soft {{ $grnStatus === 'selesai' ? 'info' : 'warn' }}">Status Penerimaan: {{ ucfirst($grnStatus) }}</span>
+            </div>
+            @if($grn->pembelian_id)
+                <a href="{{ route('reports.pembelian.show', $grn->pembelian_id) }}" class="btn btn-light btn-sm">Terima Barang</a>
+            @endif
         </div>
     </div>
 
@@ -168,11 +174,22 @@
 
     {{-- AKSI --}}
     <div class="d-flex justify-content-between">
-        <a href="{{ route('grn.index') }}" class="btn btn-outline-secondary">Kembali</a>
+        <a href="{{ route('goods-receipts.index') }}" class="btn btn-outline-secondary">Kembali</a>
         <div class="d-flex gap-2">
-            <a href="{{ route('purchases.show', $grn->purchase_id) }}" class="btn btn-light">Lihat PO</a>
-            {{-- Tambahkan aksi lain bila perlu --}}
-            {{-- <a href="{{ route('grn.print', $grn->id) }}" class="btn btn-maroon">Cetak</a> --}}
+            @if($grn->status === 'draft')
+                <form action="{{ route('goods-receipts.approve', $grn->id) }}" method="POST" style="display:inline;">
+                    @csrf
+                    <button type="submit" class="btn btn-maroon" onclick="return confirm('Setujui penerimaan barang ini? Stok akan diupdate.');">Approve Penerimaan</button>
+                </form>
+            @endif
+            @if($grn->pembelian_id)
+                <a href="{{ route('reports.pembelian.show', $grn->pembelian_id) }}" class="btn btn-light">Terima Barang</a>
+            @endif
+            <form action="{{ route('goods-receipts.destroy', $grn->id) }}" method="POST" style="display:inline;" onsubmit="return confirm('Yakin hapus penerimaan ini? {{ $grn->status === 'received' ? 'Stok akan dikembalikan.' : '' }}');">
+                @csrf
+                @method('DELETE')
+                <button type="submit" class="btn btn-danger">Hapus</button>
+            </form>
         </div>
     </div>
 </div>

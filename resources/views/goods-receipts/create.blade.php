@@ -1,353 +1,96 @@
 @extends('layouts.app')
 
-@section('title', 'Penerimaan Barang')
+@section('title', 'Terima Barang')
 
 @section('content')
-    <style>
-        :root {
-            --maroon-900: #4a0d0d;
-            --maroon-800: #5e1010;
-            --maroon-700: #731414;
-            --maroon-600: #8a1818;
-            --maroon-500: #a31d1d;
-            --maroon-100: #fdeaea;
-            --gray-50: #fafafa;
-            --gray-100: #f4f4f5;
-            --gray-200: #e5e7eb;
-            --gray-300: #d1d5db;
-            --gray-600: #52525b;
-            --success: #16a34a;
-            --warning: #d97706;
-        }
+@php
+    $items = $pembelian->items ?? collect();
+@endphp
 
-        .grn-shell {
-            background: linear-gradient(180deg, var(--maroon-100), #ffffff 40%);
-            min-height: 100%;
-            padding-bottom: 3rem;
-        }
+<style>
+    .grn-header {
+        background: linear-gradient(120deg, #701010, #8d1b1b);
+        color: #fff;
+        border-radius: 14px;
+        padding: 16px 18px;
+        box-shadow: 0 10px 25px rgba(141, 27, 27, 0.22);
+        margin-bottom: 16px;
+    }
+    .card-shadow { border:1px solid #e5e7eb; border-radius:12px; box-shadow:0 8px 24px rgba(15,23,42,.06); }
+    .table thead th { background:#f8fafc; font-size:13px; text-transform:uppercase; letter-spacing:.3px; }
+    .mini { opacity:.8; font-size:.9rem; }
+</style>
 
-        .grn-header {
-            background: var(--maroon-700);
-            color: #fff;
-            border-radius: 14px;
-            padding: 16px 20px;
-            display: flex;
-            align-items: center;
-            gap: 14px;
-            box-shadow: 0 6px 16px rgba(115, 20, 20, .25);
-        }
+<div class="container py-3">
+    <div class="grn-header d-flex justify-content-between align-items-start flex-wrap gap-2">
+        <div>
+            <p class="m-0 mini">Penerimaan Barang</p>
+            <h5 class="m-0 fw-bold">PO {{ $pembelian->po_no ?? ('#'.$pembelian->id) }}</h5>
+            <div class="mini">Supplier: <strong>{{ $pembelian->supplier->name ?? '-' }}</strong></div>
+        </div>
+        <div class="text-end">
+            <div class="mini">Tanggal PO: {{ optional($pembelian->invoice_date ?? $pembelian->created_at)->format('d M Y') }}</div>
+            <div class="mini">Status: {{ $pembelian->status ?? 'draft' }}</div>
+        </div>
+    </div>
 
-        .grn-header .badge {
-            background: rgba(255, 255, 255, .15);
-            border: 1px solid rgba(255, 255, 255, .25);
-            font-weight: 600;
-        }
-
-        .meta-card {
-            border: 1px solid var(--gray-200);
-            border-radius: 14px;
-            padding: 14px 16px;
-            background: #fff;
-        }
-
-        .mini {
-            font-size: .825rem;
-            color: var(--gray-600);
-        }
-
-        .table thead th {
-            background: var(--gray-100) !important;
-            color: #111827;
-            border-bottom: 1px solid var(--gray-200) !important;
-            font-weight: 700;
-        }
-
-        .table tbody td {
-            vertical-align: middle;
-            border-color: var(--gray-200) !important;
-        }
-
-        .qty-pill {
-            background: var(--gray-100);
-            border: 1px solid var(--gray-200);
-            border-radius: 10px;
-            padding: 2px 8px;
-            font-size: .85rem;
-            color: var(--gray-600);
-        }
-
-        .btn-maroon {
-            background: var(--maroon-600);
-            color: #fff;
-            border: 1px solid var(--maroon-700);
-            box-shadow: 0 6px 14px rgba(138, 24, 24, .25);
-        }
-
-        .btn-maroon:hover {
-            background: var(--maroon-700);
-            color: #fff;
-        }
-
-        .btn-ghost {
-            background: #fff;
-            border: 1px solid var(--gray-200);
-            color: #111827;
-        }
-
-        .btn-ghost:hover {
-            background: var(--gray-100);
-            color: #111827;
-        }
-
-        .row-actions .btn {
-            padding: 4px 10px;
-            font-size: .85rem;
-        }
-
-        .table tfoot td {
-            border-top: 2px solid var(--gray-200) !important;
-        }
-    </style>
-
-    <div class="container grn-shell py-3">
-
-        {{-- Header --}}
-        <div class="grn-header mb-3">
-            <div class="d-flex align-items-center justify-content-center rounded-circle"
-                style="width:40px;height:40px;background:rgba(255,255,255,.15);">
-                <i data-feather="inbox"></i>
+    <form action="{{ route('goods-receipts.store', $pembelian->id) }}" method="POST" class="card-shadow p-3">
+        @csrf
+        <div class="row g-3 mb-3">
+            <div class="col-md-4">
+                <label class="form-label">Tanggal Penerimaan</label>
+                <input type="date" name="received_at" value="{{ now()->format('Y-m-d') }}" class="form-control" required>
             </div>
-            <div class="flex-grow-1">
-                <div class="d-flex align-items-center gap-2">
-                    <h5 class="m-0 fw-bold">Penerimaan Barang</h5>
-                    <span class="badge">GRN</span>
-                </div>
-                <div class="mini">
-                    PO {{ $pembelian->po_no ?? '#' . $pembelian->id }}
-                    • {{ $pembelian->supplier->name ?? 'Tanpa Supplier' }}
-                </div>
+            <div class="col-md-8">
+                <label class="form-label">Catatan</label>
+                <input type="text" name="notes" class="form-control" placeholder="Opsional">
             </div>
         </div>
 
-        {{-- ERROR UMUM --}}
-        @if ($errors->has('general'))
-            <div class="alert alert-danger">{{ $errors->first('general') }}</div>
-        @endif
+        <div class="table-responsive">
+            <table class="table table-bordered align-middle">
+                <thead>
+                    <tr>
+                        <th style="width:40px">No</th>
+                        <th>Produk</th>
+                        <th class="text-center" style="width:120px">Qty PO</th>
+                        <th class="text-center" style="width:140px">Qty Terima</th>
+                        <th style="width:150px">Batch</th>
+                        <th style="width:170px">Exp Date</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    @foreach($items as $i => $item)
+                        @php
+                            $outstanding = max(0, (int)($item->qty ?? 0) - (int)($item->qty_received ?? 0));
+                        @endphp
+                        <tr>
+                            <td>{{ $i + 1 }}</td>
+                            <td>
+                                <div class="fw-semibold">{{ $item->product->name ?? '-' }}</div>
+                                <div class="mini text-muted">PO Qty: {{ $item->qty }} | Sudah terima: {{ $item->qty_received ?? 0 }}</div>
+                            </td>
+                            <td class="text-center">{{ $item->qty }}</td>
+                            <td class="text-center">
+                                <input type="number" name="items[{{ $i }}][rows][0][qty]" class="form-control form-control-sm text-end" step="0.01" min="0" max="{{ $outstanding }}" value="{{ $outstanding }}" required>
+                                <input type="hidden" name="items[{{ $i }}][pembelian_item_id]" value="{{ $item->id }}">
+                            </td>
+                            <td>
+                                <input type="text" name="items[{{ $i }}][rows][0][batch_no]" class="form-control form-control-sm" placeholder="Opsional">
+                            </td>
+                            <td>
+                                <input type="date" name="items[{{ $i }}][rows][0][exp_date]" class="form-control form-control-sm" value="">
+                            </td>
+                        </tr>
+                    @endforeach
+                </tbody>
+            </table>
+        </div>
 
-        <form action="{{ route('goods-receipts.store', $pembelian->id) }}" method="POST" id="grnForm">
-            @csrf
-
-            {{-- Meta --}}
-            <div class="row g-3 mb-3">
-                <div class="col-lg-4">
-                    <div class="meta-card">
-                        <label class="form-label fw-semibold">Tanggal Penerimaan</label>
-                        <input type="date" name="received_at"
-                            class="form-control @error('received_at') is-invalid @enderror"
-                            value="{{ old('received_at', now()->toDateString()) }}" required>
-                        @error('received_at')
-                            <div class="invalid-feedback">{{ $message }}</div>
-                        @enderror
-                    </div>
-                </div>
-                <div class="col-lg-8">
-                    <div class="meta-card">
-                        <label class="form-label fw-semibold">Catatan</label>
-                        <input type="text" name="notes" value="{{ old('notes') }}" class="form-control"
-                            placeholder="Opsional, misal: diterima admin gudang, kurir JNE">
-                    </div>
-                </div>
-            </div>
-
-            {{-- Tabel Detail --}}
-            <div class="card border-0 shadow-sm">
-                <div class="card-header"
-                    style="background:var(--maroon-900);color:#fff;border-top-left-radius:10px;border-top-right-radius:10px;">
-                    <div class="d-flex justify-content-between align-items-center">
-                        <span class="fw-semibold">Detail Penerimaan</span>
-                        <span class="mini opacity-75">Multi-batch per produk didukung</span>
-                    </div>
-                </div>
-
-                <div class="card-body p-0">
-                    <div class="table-responsive">
-                        <table class="table table-hover m-0">
-                            <thead>
-                                <tr>
-                                    <th style="width:26%">Produk</th>
-                                    <th class="text-center" style="width:10%">Qty PO</th>
-                                    <th class="text-center" style="width:10%">Terima</th>
-                                    <th style="width:16%">Batch No</th>
-                                    <th style="width:16%">Exp Date</th>
-                                    <th class="text-end" style="width:16%">Harga (PO)</th>
-                                    <th class="text-center" style="width:6%">Aksi</th>
-                                </tr>
-                            </thead>
-                            <tbody id="itemsBody">
-                                @foreach ($pembelian->items as $i => $item)
-                                    @php
-                                        // kalau nanti mau pakai qty_received tinggal ganti ke: $item->qty - $item->qty_received;
-                                        $outstanding = (float) $item->qty;
-                                        $disabled = $outstanding <= 0 ? 'disabled' : '';
-                                    @endphp
-                                    <tr data-item-index="{{ $i }}">
-                                        <td>
-                                            <div class="fw-semibold">{{ $item->product->name ?? 'Produk tidak ditemukan' }}
-                                            </div>
-                                            <div class="mini">
-                                                Kode: {{ $item->product->code ?? '—' }}
-                                            </div>
-                                            <input type="hidden" name="items[{{ $i }}][pembelian_item_id]"
-                                                value="{{ $item->id }}">
-                                        </td>
-                                        <td class="text-center">
-                                            <span class="qty-pill">{{ $item->qty }}</span>
-                                        </td>
-                                        <td class="text-center">
-                                            <input {{ $disabled }} type="number" min="0"
-                                                max="{{ $outstanding }}" class="form-control text-center gr-qty"
-                                                name="items[{{ $i }}][rows][0][qty]"
-                                                value="{{ old("items.$i.rows.0.qty", $outstanding) }}">
-                                        </td>
-                                        <td>
-                                            <input {{ $disabled }} type="text" class="form-control"
-                                                name="items[{{ $i }}][rows][0][batch_no]"
-                                                value="{{ old("items.$i.rows.0.batch_no") }}" placeholder="Contoh: B2409A">
-                                        </td>
-                                        <td>
-                                            <input {{ $disabled }} type="date" class="form-control"
-                                                name="items[{{ $i }}][rows][0][exp_date]"
-                                                value="{{ old("items.$i.rows.0.exp_date") }}">
-                                        </td>
-                                        <td class="text-end">
-                                            <input type="text" class="form-control text-end"
-                                                value="Rp {{ number_format($item->buy_price, 2, ',', '.') }}" readonly>
-                                        </td>
-                                        <td class="text-center row-actions">
-                                            <button type="button" class="btn btn-sm btn-ghost add-row"
-                                                {{ $disabled }}>
-                                                <i data-feather="plus"></i>
-                                            </button>
-                                        </td>
-                                    </tr>
-                                @endforeach
-                            </tbody>
-                            <tfoot>
-                                <tr>
-                                    <td colspan="7" class="p-3">
-                                        <div class="d-flex justify-content-between align-items-center">
-                                            <div class="mini">
-                                                Tip: klik tombol <strong>+</strong> pada baris produk untuk menambah batch
-                                                kedua/ketiga.
-                                            </div>
-                                            <div class="mini">
-                                                Total baris: <span id="rowCount">0</span>
-                                            </div>
-                                        </div>
-                                    </td>
-                                </tr>
-                            </tfoot>
-                        </table>
-                    </div>
-                </div>
-
-                {{-- FOOTER TOMBOL --}}
-                <div class="card-footer d-flex justify-content-between align-items-center bg-white">
-                    <a href="{{ route('reports.pembelian.show', $pembelian->id) }}" class="btn btn-ghost">
-                        Kembali ke Laporan PO
-                    </a>
-                    <div class="d-flex gap-2">
-                        <button type="button" class="btn btn-ghost" id="btnFillOutstanding">
-                            Isi Qty Outstanding
-                        </button>
-                        <button type="submit" class="btn btn-maroon">
-                            Simpan Penerimaan
-                        </button>
-                    </div>
-                </div>
-            </div>
-        </form>
-    </div>
-
-    <script>
-        document.addEventListener('DOMContentLoaded', () => {
-            if (window.feather) feather.replace();
-
-            const bodyEl = document.getElementById('itemsBody');
-            const rowCountEl = document.getElementById('rowCount');
-
-            function updateRowCount() {
-                rowCountEl.textContent = bodyEl.querySelectorAll('tr').length;
-            }
-
-            // tombol + tambah batch
-            document.querySelectorAll('.add-row').forEach(btn => {
-                btn.addEventListener('click', e => {
-                    const tr = e.currentTarget.closest('tr');
-                    const idx = tr.getAttribute('data-item-index');
-
-                    // hitung berapa row existing untuk item ini
-                    const existing = bodyEl.querySelectorAll(
-                        `tr[data-item-index="${idx}"], tr[data-parent="${idx}"]`).length - 1;
-                    const rowIndex = existing; // row tambahan dimulai dari 1
-                    const maxQty = parseFloat(tr.querySelector('.gr-qty')?.getAttribute('max') ||
-                        '0');
-
-                    const tpl = document.createElement('tr');
-                    tpl.setAttribute('data-parent', idx);
-                    tpl.innerHTML = `
-                    <td colspan="2" class="text-end mini text-muted">Batch tambahan</td>
-                    <td class="text-center">
-                        <input type="number"
-                               min="0"
-                               max="${maxQty}"
-                               class="form-control text-center"
-                               name="items[${idx}][rows][${rowIndex}][qty]"
-                               value="0">
-                    </td>
-                    <td>
-                        <input type="text"
-                               class="form-control"
-                               name="items[${idx}][rows][${rowIndex}][batch_no]"
-                               placeholder="Batch No">
-                    </td>
-                    <td>
-                        <input type="date"
-                               class="form-control"
-                               name="items[${idx}][rows][${rowIndex}][exp_date]">
-                    </td>
-                    <td class="text-end">
-                        <span class="mini text-muted">Ikut harga PO</span>
-                    </td>
-                    <td class="text-center">
-                        <button type="button" class="btn btn-sm btn-ghost remove-row">
-                            <i data-feather="x"></i>
-                        </button>
-                    </td>
-                `;
-                    tr.insertAdjacentElement('afterend', tpl);
-                    if (window.feather) feather.replace();
-                    updateRowCount();
-                });
-            });
-
-            // hapus batch tambahan
-            bodyEl.addEventListener('click', e => {
-                if (e.target.closest('.remove-row')) {
-                    e.target.closest('tr').remove();
-                    updateRowCount();
-                }
-            });
-
-            // isi semua qty outstanding
-            document.getElementById('btnFillOutstanding')?.addEventListener('click', () => {
-                document.querySelectorAll('.gr-qty').forEach(inp => {
-                    const max = parseFloat(inp.getAttribute('max') || '0');
-                    if (!inp.disabled) inp.value = max;
-                });
-            });
-
-            updateRowCount();
-        });
-    </script>
+        <div class="d-flex justify-content-between align-items-center mt-3">
+            <a href="{{ route('goods-receipts.index') }}" class="btn btn-outline-secondary">Batal</a>
+            <button type="submit" class="btn btn-primary">Simpan Penerimaan</button>
+        </div>
+    </form>
+</div>
 @endsection

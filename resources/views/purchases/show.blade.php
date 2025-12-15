@@ -218,9 +218,7 @@
                                     <td class="text-center">{{ number_format($qty) }}</td>
                                     <td class="text-end">Rp {{ number_format($value, 2, ',', '.') }}</td>
                                     <td class="text-center">
-                                        @if(Route::has('grn.show'))
-                                            <a href="{{ route('grn.show', $grn->id) }}" class="btn btn-sm btn-outline-secondary">Lihat</a>
-                                        @endif
+                                        <a href="{{ route('goods-receipts.show', $grn->id) }}" class="btn btn-sm btn-outline-secondary">Lihat</a>
                                     </td>
                                 </tr>
                             @endforeach

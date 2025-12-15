@@ -2,6 +2,23 @@
 
 namespace App\Models;
 
+/**
+ * @mixin \Eloquent
+ * @property int $id
+ * @property int|null $supplier_id
+ * @property string|null $po_no
+ * @property string|null $invoice_no
+ * @property string|null $status
+ * @property \Illuminate\Support\Carbon|null $invoice_date
+ * @property \Illuminate\Support\Carbon|null $due_date
+ * @property float|null $gross
+ * @property float|null $discount_total
+ * @property float|null $tax_percent
+ * @property float|null $tax_amount
+ * @property float|null $extra_cost
+ * @property float|null $net_total
+ */
+
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;

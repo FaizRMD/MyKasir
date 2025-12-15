@@ -64,7 +64,7 @@
             </div>
 
             {{-- Form Penerimaan --}}
-            <form action="{{ route('grn.store') }}" method="POST">
+            <form action="{{ route('goods-receipts.store', $purchase->id) }}" method="POST">
                 @csrf
                 <input type="hidden" name="purchase_id" value="{{ $purchase->id }}">
 

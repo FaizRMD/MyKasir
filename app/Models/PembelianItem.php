@@ -2,6 +2,16 @@
 
 namespace App\Models;
 
+/**
+ * @mixin \Eloquent
+ * @property int $id
+ * @property int $pembelian_id
+ * @property int $product_id
+ * @property float|int $qty
+ * @property float|int $qty_received
+ * @property float|int $buy_price
+ */
+
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Carbon\Carbon;
