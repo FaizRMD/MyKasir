@@ -214,7 +214,7 @@
                   <a href="{{ route('products.edit',$p) }}" class="btn btn-sm btn-outline-primary icon-btn">
                     <i data-feather="edit-3"></i>
                   </a>
-                  <form method="post" action="{{ route('products.destroy',$p) }}" class="d-inline" onsubmit="return confirm('Hapus produk ini?')">
+                  <form method="post" action="{{ route('products.destroy',$p) }}" class="d-inline" onsubmit="return confirm('Hapus produk ini? Jika produk sudah dipakai di transaksi/penerimaan, maka akan dinonaktifkan (tidak dihapus).')">
                     @csrf @method('delete')
                     <button class="btn btn-sm btn-outline-danger icon-btn" type="submit">
                       <i data-feather="trash-2"></i>

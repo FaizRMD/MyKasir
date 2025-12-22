@@ -53,12 +53,18 @@ class Payable extends Model
     // Scopes
     public function scopeUnpaid($query)
     {
-        return $query->where('status', 'unpaid');
+        return $query->where('status', '!=', 'paid')->where('status', '!=', 'lunas');
     }
 
     public function scopeOverdue($query)
     {
-        return $query->where('status', '!=', 'paid')
+        return $query->whereIn('status', ['unpaid', 'belum lunas'])
             ->whereDate('due_date', '<', now());
+    }
+
+    public function scopePending($query)
+    {
+        return $query->whereIn('status', ['unpaid', 'belum lunas', 'pending'])
+            ->orderBy('due_date', 'asc');
     }
 }

@@ -179,6 +179,7 @@
 
       <div class="no-print center" style="margin-top:8px">
         <button onclick="window.print()">Cetak</button>
+        <button onclick="window.location.href='{{ route('kasir.index') }}'" style="margin-left:8px">Kembali ke POS</button>
       </div>
     </div>
   </div>

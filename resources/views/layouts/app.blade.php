@@ -377,16 +377,18 @@
         $userRole = $me && $me->role ? strtolower($me->role) : null;
 
         // Notifikasi: hutang, stok menipis, expired
-        $unpaidPurchases = collect();
+        $unpaidPayables = collect();
         try {
-            $unpaidPurchases = \App\Models\Pembelian::with('supplier')
-                ->whereNotNull('jatuh_tempo')
-                ->where('status_bayar', '!=', 'lunas')
-                ->orderBy('jatuh_tempo', 'asc')
+            $unpaidPayables = \App\Models\Payable::with('supplier', 'pembelian')
+                ->where(function ($q) {
+                    $q->where('status', '!=', 'paid')
+                      ->where('status', '!=', 'lunas');
+                })
+                ->orderBy('due_date', 'asc')
                 ->limit(5)
                 ->get();
         } catch (\Exception $e) {
-            \Log::error('Error loading unpaid purchases: ' . $e->getMessage());
+            \Log::error('Error loading unpaid payables: ' . $e->getMessage());
         }
 
         $lowStockProducts = collect();
@@ -417,7 +419,7 @@
         } catch (\Exception $e) {
         }
 
-        $notifCount = $unpaidPurchases->count() + $lowStockProducts->count() + $expiringProducts->count();
+        $notifCount = $unpaidPayables->count() + $lowStockProducts->count() + $expiringProducts->count();
     @endphp
 
     {{-- TOPBAR --}}
@@ -467,45 +469,58 @@
                                     <small class="text-muted">Tidak ada notifikasi penting</small>
                                 </div>
                             @else
-                                {{-- HUTANG / JATUH TEMPO --}}
-                                @if ($unpaidPurchases->count())
+                                {{-- HUTANG / JATUH TEMPO (PAYABLE) --}}
+                                @if ($unpaidPayables->count())
                                     <div class="px-1 pb-1">
                                         <small class="text-uppercase text-muted fw-semibold d-block mb-1">
-                                            Hutang / Jatuh Tempo
+                                            <i class="bi bi-cash-coin me-1"></i>Hutang / Jatuh Tempo
                                         </small>
-                                        @foreach ($unpaidPurchases as $p)
+                                        @foreach ($unpaidPayables as $payable)
                                             @php
-                                                $jt = $p->jatuh_tempo ? \Carbon\Carbon::parse($p->jatuh_tempo) : null;
+                                                $isOverdue = $payable->is_overdue;
+                                                $dueDate = $payable->due_date ? \Carbon\Carbon::parse($payable->due_date) : null;
+                                                $daysUntilDue = $dueDate
+                                                    ? now()->diffInDays($dueDate, false)
+                                                    : null;
+                                                $statusColor = match($payable->status) {
+                                                    'paid', 'lunas' => '#10b981',
+                                                    'partial' => '#f59e0b',
+                                                    'pending' => '#3b82f6',
+                                                    default => '#ef4444'
+                                                };
                                             @endphp
                                             <div class="notif-item py-2 px-2 rounded-3 mb-1"
-                                                style="background:#fff7f7;">
-                                                <span class="dot" style="background:#ef4444;"></span>
-                                                <div>
+                                                style="background:{{ $isOverdue ? '#fee2e2' : '#fff7f7' }};">
+                                                <span class="dot" style="background:{{ $statusColor }};"></span>
+                                                <div class="flex-grow-1">
                                                     <div class="fw-semibold">
-                                                        {{ $p->supplier?->nama ?? ($p->supplier?->name ?? 'Supplier') }}
+                                                        {{ $payable->supplier?->name ?? 'Supplier Unknown' }}
                                                     </div>
                                                     <div class="small text-muted">
-                                                        Jatuh tempo:
-                                                        <strong>
-                                                            {{ $jt ? $jt->format('d M Y') : '-' }}
-                                                        </strong>
+                                                        Jatuh tempo: <strong>{{ $payable->due_date?->format('d M Y') ?? '-' }}</strong>
+                                                        @if ($isOverdue)
+                                                            <span class="badge bg-danger ms-1 py-0">Overdue</span>
+                                                        @elseif ($daysUntilDue !== null && $daysUntilDue <= 7)
+                                                            <span class="badge bg-warning ms-1 py-0">{{ $daysUntilDue }} hari</span>
+                                                        @endif
                                                     </div>
-                                                    @if (!empty($p->no_faktur ?? ($p->kode ?? null)))
-                                                        <div class="small text-muted">
-                                                            Faktur:
-                                                            {{ $p->no_faktur ?? $p->kode }}
-                                                        </div>
-                                                    @endif
+                                                    <div class="small text-muted">
+                                                        Sisa Rp {{ number_format($payable->balance, 0, ',', '.') }}
+                                                    </div>
+                                                    <span class="badge bg-{{ $payable->status === 'paid' || $payable->status === 'lunas' ? 'success' : ($payable->status === 'partial' ? 'warning' : 'danger') }} mt-1 py-0">
+                                                        {{ ucfirst(str_replace('_', ' ', $payable->status)) }}
+                                                    </span>
                                                 </div>
                                             </div>
                                         @endforeach
 
                                         @if (in_array($userRole, ['admin', 'owner']))
-                                            <div class="text-end mt-1">
+                                            <div class="text-end mt-2">
                                                 <a href="{{ route('reports.pembelian.hutang') }}"
-                                                    class="small text-decoration-none">
-                                                    Lihat detail hutang <i class="bi bi-chevron-right small"></i>
+                                                    class="small text-decoration-none fw-semibold">
+                                                    Kelola hutang <i class="bi bi-chevron-right small"></i>
                                                 </a>
+
                                             </div>
                                         @endif
                                     </div>

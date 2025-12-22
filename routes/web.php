@@ -67,7 +67,7 @@ Route::get('/', function () {
 Route::middleware(['auth', 'verified'])->get('/dashboard', function (Request $request) {
     $user = $request->user();
 
-    if ($user && $user->hasRole('kasir')) {
+    if ($user && ($user->hasRole('kasir') || ($user->role ?? null) === 'kasir')) {
         // Kasir tidak boleh ke dashboard, langsung lempar ke Transaksi
         return redirect()->route('kasir.index');
     }
@@ -391,6 +391,10 @@ Route::middleware(['auth', 'role:admin|owner'])->group(function () {
         Route::get('/upcoming-expired', [LaporanExpiredController::class, 'getUpcomingExpired'])
             ->name('upcoming-expired');
     });
+
+    /* ================= PAYABLE ROUTES (Hutang) ================= */
+    Route::patch('/payables/{payable}/status', [PembelianReportController::class, 'updatePayableStatus'])
+        ->name('payables.update-status');
 });
 
 /*

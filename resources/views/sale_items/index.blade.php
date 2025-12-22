@@ -383,6 +383,7 @@
                 <i data-feather="shopping-cart"></i>
                 Transaksi / Kasir
                 <span class="chip ms-auto" id="invoiceNo">Draft</span>
+                <button class="btn btn-ghost ms-2" id="btnReprint" style="display:none">Cetak Ulang</button>
             </div>
             <div class="bd">
                 {{-- Search / Scan --}}
@@ -1087,13 +1088,8 @@
                     const j = await res2.json();
                     if (!j.ok) throw new Error(j.message || 'Checkout gagal');
 
-                    // 3) Konfirmasi cetak
-                    const inginCetak = confirm(
-                        'Transaksi tersimpan.\nApakah Anda ingin mencetak struk?'
-                    );
-                    if (inginCetak) {
-                        window.open(j.print_url, '_blank');
-                    }
+                    // 3) Simpan URL struk terakhir untuk Cetak Ulang
+                    try { localStorage.setItem('pos_last_print_url', j.print_url); } catch(_) {}
 
                     // 4) Reset UI
                     clearCart();
@@ -1102,8 +1098,19 @@
                     $('#taxPct').value = 0;
                     updateTotals();
 
-                    // 5) Tampilkan animasi centang sukses
+                    // 5) Tampilkan animasi sukses
                     showSuccessTick();
+
+                    // 6) Setelah animasi selesai, tanya apakah ingin cetak
+                    setTimeout(() => {
+                        const inginCetak = confirm(
+                            'Transaksi tersimpan.\nApakah Anda ingin mencetak struk?'
+                        );
+                        if (inginCetak) {
+                            // Redirect ke halaman struk di tab yang sama (agar terekam screen record)
+                            window.location.href = j.print_url;
+                        }
+                    }, 1600); // Tunggu animasi selesai
 
                 } catch (e) {
                     alert(e.message || 'Terjadi kesalahan saat menyimpan transaksi.');
@@ -1116,6 +1123,23 @@
                 if (method === 'CASH') method = 'TRANSFER';
                 pay(false);
             });
+
+            // ===== Cetak ulang struk terakhir =====
+            const reprintBtn = $('#btnReprint');
+            const LAST_PRINT_KEY = 'pos_last_print_url';
+            const lastUrl = localStorage.getItem(LAST_PRINT_KEY);
+            if (reprintBtn) {
+                if (lastUrl) {
+                    reprintBtn.style.display = '';
+                }
+                reprintBtn.addEventListener('click', () => {
+                    const url = localStorage.getItem(LAST_PRINT_KEY);
+                    if (url) {
+                        // Redirect ke halaman struk di tab yang sama
+                        window.location.href = url;
+                    }
+                });
+            }
 
             // init
             render();

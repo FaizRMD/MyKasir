@@ -40,6 +40,8 @@ class UserController extends Controller
             'name' => $request->name,
             'email' => $request->email,
             'password' => Hash::make($request->password),
+            // Simpan juga ke kolom role agar middleware fallback (kolom) tetap konsisten
+            'role' => $request->role,
         ]);
 
         $user->assignRole($request->role);

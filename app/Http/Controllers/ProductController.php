@@ -8,11 +8,15 @@ use Maatwebsite\Excel\Facades\Excel;
 use App\Exports\ProductsExport;
 use Maatwebsite\Excel\Excel as ExcelFormat;
 use App\Models\InventoryMovement;
+use App\Models\GoodsReceiptItem;
+use App\Models\PurchaseItem;
+use App\Models\StockMovement;
 use Barryvdh\DomPDF\Facade\Pdf;
 use App\Models\Product;
 use App\Models\Supplier;
 use Illuminate\Http\Request;
 use Illuminate\Validation\Rule;
+use Illuminate\Database\QueryException;
 
 class ProductController extends Controller
 {
@@ -40,7 +44,7 @@ class ProductController extends Controller
             ->when($status === 'lowstock', fn($qq) => $qq->whereColumn('stock', '<=', 'min_stock'))
             ->when($status === 'nostock', fn($qq) => $qq->where('stock', '<=', 0))
             ->when($supplierId, fn($qq) => $qq->where('supplier_id', $supplierId))
-            ->orderBy('name')
+            ->latest()
             ->paginate(15)
             ->withQueryString();
 
@@ -259,13 +263,53 @@ class ProductController extends Controller
 
     public function destroy(Request $request, Product $product)
     {
-        $hasSaleItems = method_exists($product, 'saleItems') ? $product->saleItems()->exists() : false;
-        if ($hasSaleItems) {
-            return back()->withErrors('Produk sudah dipakai di transaksi sehingga tidak dapat dihapus.');
+        // Cek keterikatan data di tabel lain agar tidak melanggar FK
+        $hasSaleItems   = method_exists($product, 'saleItems') ? $product->saleItems()->exists() : false;
+        $hasGrnItems    = class_exists(GoodsReceiptItem::class)
+            ? GoodsReceiptItem::where('product_id', $product->id)->exists()
+            : false;
+        $hasPoItems     = class_exists(PurchaseItem::class)
+            ? PurchaseItem::where('product_id', $product->id)->exists()
+            : false;
+        $hasInvMoves    = class_exists(InventoryMovement::class)
+            ? InventoryMovement::where('product_id', $product->id)->exists()
+            : false;
+        $hasStockMoves  = class_exists(StockMovement::class)
+            ? StockMovement::where('product_id', $product->id)->exists()
+            : false;
+
+        $isReferenced = $hasSaleItems || $hasGrnItems || $hasPoItems || $hasInvMoves || $hasStockMoves;
+
+        // Jika sudah terpakai, jangan hapus hard delete. Nonaktifkan saja agar tidak muncul di pemilihan.
+        if ($isReferenced) {
+            if ($product->is_active) {
+                $product->is_active = false;
+                $product->saveQuietly();
+            }
+
+            return back()->withErrors(
+                'Produk tidak dapat dihapus karena sudah dipakai di transaksi/penerimaan. '
+                .'Produk telah dinonaktifkan agar tidak bisa dipakai lagi.'
+            );
         }
 
-        $product->delete();
-        return back()->with('ok', 'Produk dihapus.');
+        try {
+            $product->delete();
+            return back()->with('ok', 'Produk dihapus.');
+        } catch (QueryException $e) {
+            // Fallback jika ada FK lain yang belum ter-cover
+            if ((string) $e->getCode() === '23000') { // Integrity constraint violation
+                if ($product->is_active) {
+                    $product->is_active = false;
+                    $product->saveQuietly();
+                }
+                return back()->withErrors(
+                    'Produk terkait data lain sehingga tidak bisa dihapus. '
+                    .'Produk telah dinonaktifkan.'
+                );
+            }
+            throw $e;
+        }
     }
 
     /* =========================
